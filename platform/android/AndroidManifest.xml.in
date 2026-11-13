@@ -317,7 +317,7 @@
 
     <provider
         android:name="androidx.core.content.FileProvider"
-        android:authorities="ch.opengis.@APP_PACKAGE_NAME@.fileprovider"
+        android:authorities="@APP_ID@.fileprovider"
         android:exported="false"
         android:grantUriPermissions="true">
         <meta-data
