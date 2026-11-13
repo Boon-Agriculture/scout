@@ -1,0 +1,118 @@
+---
+# Boon Agriculture: Scout Android test build.
+# Runs only when started by hand (Actions tab > "Scout Android build" > Run workflow).
+# One phone type (arm64), no store upload, no crash reporting, no signing key:
+# it produces a debug APK for testing on a phone.
+name: Scout Android build
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      TRIPLET: arm64-android
+      ALL_FILES_ACCESS: 'OFF'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Check the Gradle build helper against Gradle's official list
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Reclaim disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          df . -h
+
+      - name: Prepare variables
+        shell: bash
+        run: |
+          NDK_VERSION=29.0.14206865
+          echo "JAVA_HOME=${JAVA_HOME_17_X64}" >> $GITHUB_ENV
+          echo "ANDROID_BUILD_TOOLS_VERSION=35.0.1" >> $GITHUB_ENV
+          echo "ANDROID_NDK_VERSION=${NDK_VERSION}" >> $GITHUB_ENV
+          echo "ANDROID_NDK=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> $GITHUB_ENV
+          echo "ndk.dir=/usr/local/lib/android/sdk/ndk/${NDK_VERSION}" >> local.properties
+          ./scripts/ci/env_gh.sh
+          echo "BUILD_TYPE=Release" >> $GITHUB_ENV
+          echo "CMAKE_BUILD_DIR=/home/runner/builddir" >> $GITHUB_ENV
+
+      - name: Install Mono (needed for the ready-built dependency cache)
+        run: |
+          sudo apt install ca-certificates gnupg
+          sudo gpg --homedir /tmp --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/mono-official-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF
+          sudo chmod +r /usr/share/keyrings/mono-official-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/mono-official-archive-keyring.gpg] https://download.mono-project.com/repo/ubuntu stable-focal main" | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
+          sudo apt update
+          sudo apt install mono-devel
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.29.0
+
+      - name: Prepare build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gperf autopoint '^libxcb.*-dev' libxrandr-dev libx11-xcb-dev libsm-dev libegl1-mesa-dev libglu1-mesa-dev libxrender-dev libxi-dev libxkbcommon-dev libxkbcommon-x11-dev autoconf-archive libgstreamer-gl1.0-0 libgstreamer-plugins-base1.0-0 libfuse2 libcups2-dev nasm libltdl-dev
+
+      - name: Install dependencies and generate project files
+        run: |
+          source ./scripts/version_number.sh
+          source ./scripts/ci/generate-version-details.sh
+          cmake -S "${{ github.workspace }}" \
+                -B "${CMAKE_BUILD_DIR}" \
+                -G Ninja \
+                -D CMAKE_BUILD_TYPE=${BUILD_TYPE} \
+                -D ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT} \
+                -D ANDROID_NDK_VERSION="${ANDROID_NDK_VERSION}" \
+                -D ANDROID_BUILD_TOOLS_VERSION="${ANDROID_BUILD_TOOLS_VERSION}" \
+                -D VCPKG_TARGET_TRIPLET="${TRIPLET}" \
+                -D WITH_ALL_FILES_ACCESS="${ALL_FILES_ACCESS}" \
+                -D WITH_SPIX=OFF \
+                -D APP_VERSION="${APP_VERSION}" \
+                -D APK_VERSION_CODE="${APK_VERSION_CODE}" \
+                -D APP_VERSION_STR="${APP_VERSION_STR}" \
+                -D APP_PACKAGE_NAME="${APP_PACKAGE_NAME}" \
+                -D APP_ICON="${APP_ICON}" \
+                -D APP_NAME="${APP_NAME}" \
+                -D NUGET_USERNAME=opengisch \
+                -D NUGET_TOKEN=${{ secrets.GITHUB_TOKEN }} \
+                -D VCPKG_INSTALL_OPTIONS="--x-abi-tools-use-exact-versions"
+
+      - name: Keep dependency build logs if it fails
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-logs
+          path: ${{ env.CMAKE_BUILD_DIR }}/**/*.log
+
+      - name: Build
+        run: cmake --build "${CMAKE_BUILD_DIR}" --config ${BUILD_TYPE}
+
+      - name: Package (debug APK, no signing key)
+        run: |
+          cmake --build "${CMAKE_BUILD_DIR}" --target bundle --config Release
+          find "${CMAKE_BUILD_DIR}/src/app/android-build/build/outputs" -name '*.apk' -exec cp {} /tmp/scout-test-arm64.apk \; -quit
+          ls -la /tmp/scout-test-arm64.apk
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-test-arm64
+          path: /tmp/scout-test-arm64.apk
+          retention-days: 14
