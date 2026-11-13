@@ -30,6 +30,10 @@ jobs:
 
       - name: Check the Gradle build helper against Gradle's official list
         uses: gradle/actions/wrapper-validation@v4
+        with:
+          # QField's helper is an official Gradle 1.6 test build from 2013 (in QField since 2021);
+          # Gradle's official list includes test builds when this is on.
+          allow-snapshots: true
 
       - name: Reclaim disk space
         run: |
@@ -96,7 +100,7 @@ jobs:
 
       - name: Keep dependency build logs if it fails
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: failure() && env.CMAKE_BUILD_DIR != ''
         with:
           name: build-logs
           path: ${{ env.CMAKE_BUILD_DIR }}/**/*.log
