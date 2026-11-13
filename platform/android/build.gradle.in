@@ -86,6 +86,7 @@ android {
     }
 
     defaultConfig {
+      applicationId = '@APP_ID@'
       minSdkVersion = @ANDROID_PLATFORM_INT@
       targetSdkVersion = @ANDROID_TARGET_PLATFORM@
       ndk {
