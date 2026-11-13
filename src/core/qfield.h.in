@@ -70,6 +70,7 @@ class QFIELD_CORE_EXPORT Qfield
     static inline const QString appVersion{ QStringLiteral( "@APP_VERSION@" ) };
     static inline const QString appVersionStr{ QStringLiteral( "@APP_VERSION_STR@" ) };
     static inline const QString gitRev{ QStringLiteral( "@GIT_REV@" ) };
+    static inline const QString cloudDefaultUrl{ QStringLiteral( "@APP_CLOUD_URL@" ) };
 
     QString name() const { return appName; }
     QString version() const { return appVersion; }
