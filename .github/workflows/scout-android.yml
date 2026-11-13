@@ -28,12 +28,20 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Replace QField's Gradle build helper with Gradle's official one
+        # QField's gradle-wrapper.jar (sha256 e2b82129...) is not on Gradle's official list,
+        # so we never run it. We download the official helper for the version QField uses
+        # and check it against Gradle's published fingerprint before use.
+        run: |
+          GV=$(sed -n 's/.*gradle-\([0-9.]*\)-bin.zip.*/\1/p' platform/android/gradle/wrapper/gradle-wrapper.properties)
+          echo "Gradle version from QField: ${GV}"
+          curl -fsSL "https://services.gradle.org/distributions/gradle-${GV}-wrapper.jar" -o /tmp/gradle-wrapper.jar
+          curl -fsSL "https://services.gradle.org/distributions/gradle-${GV}-wrapper.jar.sha256" -o /tmp/gradle-wrapper.jar.sha256
+          echo "$(cat /tmp/gradle-wrapper.jar.sha256)  /tmp/gradle-wrapper.jar" | sha256sum -c -
+          cp /tmp/gradle-wrapper.jar platform/android/gradle/wrapper/gradle-wrapper.jar
+
       - name: Check the Gradle build helper against Gradle's official list
         uses: gradle/actions/wrapper-validation@v4
-        with:
-          # QField's helper is an official Gradle 1.6 test build from 2013 (in QField since 2021);
-          # Gradle's official list includes test builds when this is on.
-          allow-snapshots: true
 
       - name: Reclaim disk space
         run: |
