@@ -906,7 +906,7 @@ public class QFieldActivity extends QtActivity {
                     resourceTempFilePath = tempFile.getAbsolutePath();
 
                     Uri fileURI = FileProvider.getUriForFile(
-                        this, "ch.opengis.qfield.fileprovider", tempFile);
+                        this, getPackageName() + ".fileprovider", tempFile);
 
                     Log.d("QField",
                           "Camera temporary file uri: " + fileURI.toString());
@@ -976,7 +976,7 @@ public class QFieldActivity extends QtActivity {
             Uri contentUri = Build.VERSION.SDK_INT < 24
                                  ? Uri.fromFile(resourceFile)
                                  : FileProvider.getUriForFile(
-                                       this, "ch.opengis.qfield.fileprovider",
+                                       this, getPackageName() + ".fileprovider",
                                        resourceCacheFile);
 
             Intent intent =
