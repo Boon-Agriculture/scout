@@ -1,11 +1,16 @@
 ---
-# Boon Agriculture: Scout Android test build.
+# Boon Agriculture: branded Android test build (Scout by default).
 # Runs only when started by hand (Actions tab > "Scout Android build" > Run workflow).
 # One phone type (arm64), no store upload, no crash reporting, no signing key:
 # it produces a debug APK for testing on a phone.
 name: Scout Android build
 on:
   workflow_dispatch:
+    inputs:
+      brand:
+        description: 'Brand folder under branding/ (scout, or later a customer brand)'
+        required: true
+        default: 'scout'
 
 permissions:
   contents: read
@@ -21,6 +26,7 @@ jobs:
     timeout-minutes: 360
     env:
       TRIPLET: arm64-android
+      BRAND: ${{ inputs.brand }}
       ALL_FILES_ACCESS: 'OFF'
     steps:
       - name: Checkout
@@ -91,6 +97,10 @@ jobs:
         run: |
           source ./scripts/version_number.sh
           source ./scripts/ci/generate-version-details.sh
+          # Brand settings override QField's own (name, ids, server, icon, colours)
+          test -f "branding/${BRAND}/brand.env"
+          set -a; source "branding/${BRAND}/brand.env"; set +a
+          echo "Brand: ${APP_NAME} (${APP_ID}) -> ${APP_CLOUD_URL}"
           cmake -S "${{ github.workspace }}" \
                 -B "${CMAKE_BUILD_DIR}" \
                 -G Ninja \
@@ -107,6 +117,10 @@ jobs:
                 -D APP_PACKAGE_NAME="${APP_PACKAGE_NAME}" \
                 -D APP_ICON="${APP_ICON}" \
                 -D APP_NAME="${APP_NAME}" \
+                -D APP_ID="${APP_ID}" \
+                -D APP_CLOUD_URL="${APP_CLOUD_URL}" \
+                -D APP_ICON_PATH="${{ github.workspace }}/branding/${BRAND}/icon" \
+                -D APP_THEME_PATH="${{ github.workspace }}/branding/${BRAND}/theme.json" \
                 -D NUGET_USERNAME=opengisch \
                 -D NUGET_TOKEN=${{ secrets.GITHUB_TOKEN }} \
                 -D VCPKG_INSTALL_OPTIONS="--x-abi-tools-use-exact-versions"
@@ -124,12 +138,12 @@ jobs:
       - name: Package (debug APK, no signing key)
         run: |
           cmake --build "${CMAKE_BUILD_DIR}" --target bundle --config Release
-          find "${CMAKE_BUILD_DIR}/src/app/android-build/build/outputs" -name '*.apk' -exec cp {} /tmp/scout-test-arm64.apk \; -quit
-          ls -la /tmp/scout-test-arm64.apk
+          find "${CMAKE_BUILD_DIR}/src/app/android-build/build/outputs" -name '*.apk' -exec cp {} /tmp/${BRAND}-test-arm64.apk \; -quit
+          ls -la /tmp/${BRAND}-test-arm64.apk
 
       - name: Upload the APK
         uses: actions/upload-artifact@v4
         with:
-          name: scout-test-arm64
-          path: /tmp/scout-test-arm64.apk
+          name: ${{ env.BRAND }}-test-arm64
+          path: /tmp/${{ env.BRAND }}-test-arm64.apk
           retention-days: 14
