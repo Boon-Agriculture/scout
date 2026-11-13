@@ -15,6 +15,7 @@
 
 #include "qfcloudconnection.h"
 #include "qfcloudutils.h"
+#include "qfield.h"
 
 #include <QDirIterator>
 #include <QFile>
@@ -44,7 +45,7 @@ QfCloudConnection::QfCloudConnection()
   , mProviderConfigId( QSettings().value( QStringLiteral( "/QFieldCloud/providerConfigId" ) ).toString() )
   , mServerInformation( QSettings().value( QStringLiteral( "/QFieldCloud/serverInformation" ) ).toMap() )
 {
-  if ( mUrl == defaultUrl() && mServerInformation.signupUrl.isEmpty() )
+  if ( mUrl == defaultUrl() && mServerInformation.signupUrl.isEmpty() && defaultUrl() == QStringLiteral( "https://app.qfield.cloud" ) )
   {
     mServerInformation.signupUrl = QStringLiteral( "https://app.qfield.cloud/accounts/signup/" );
   }
@@ -210,7 +211,7 @@ void QfCloudConnection::setUrl( const QString &url )
 
 QString QfCloudConnection::defaultUrl()
 {
-  return QStringLiteral( "https://app.qfield.cloud" );
+  return Qfield::cloudDefaultUrl;
 }
 
 QStringList QfCloudConnection::urls() const
