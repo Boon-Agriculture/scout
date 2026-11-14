@@ -101,6 +101,7 @@
 #include "utils/qfcoordinatereferencesystemutils.h"
 #include "utils/qfexpressioncontextutils.h"
 #include "utils/qffeatureutils.h"
+#include "utils/qfdocumentscanutils.h"
 #include "utils/qffileutils.h"
 #include "utils/qfgeometryutils.h"
 #include "utils/qflayerutils.h"
@@ -232,6 +233,7 @@ namespace QfCore
     REGISTER_SINGLETON( "org.qfield.core", QfCoordinateReferenceSystemUtils, "QfCoordinateReferenceSystemUtils" );
     REGISTER_SINGLETON( "org.qfield.core", QfExpressionContextUtils, "QfExpressionContextUtils" );
     REGISTER_SINGLETON( "org.qfield.core", QfFeatureUtils, "QfFeatureUtils" );
+    REGISTER_SINGLETON( "org.qfield.core", QfDocumentScanUtils, "QfDocumentScanUtils" );
     REGISTER_SINGLETON( "org.qfield.core", QfFileUtils, "QfFileUtils" );
     REGISTER_SINGLETON( "org.qfield.core", QfGeometryUtils, "QfGeometryUtils" );
     REGISTER_SINGLETON( "org.qfield.core", QfLayerUtils, "QfLayerUtils" );
