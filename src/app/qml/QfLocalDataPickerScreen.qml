@@ -605,7 +605,7 @@ Page {
         height: enabled ? 48 : 0
         leftPadding: QfTheme.menuItemLeftPadding
 
-        text: qsTr("Upload to QFieldCloud")
+        text: qsTr("Upload to %1").arg(Qfield.cloudName)
         onTriggered: {
           uploadFilesToCloudConnection.enabled = true;
           uploadFilesToCloudConnection.sendingMultiple = false;
@@ -978,7 +978,7 @@ Page {
         height: enabled ? 48 : 0
         leftPadding: QfTheme.menuItemLeftPadding
 
-        text: qsTr("Upload file(s) to QFieldCloud")
+        text: qsTr("Upload file(s) to %1").arg(Qfield.cloudName)
         onTriggered: {
           var fileNames = [];
           for (let i = 0; i < table.selectedList.length; ++i) {
@@ -1053,18 +1053,18 @@ Page {
       platformUtilities.uploadPendingAttachments(cloudConnection);
       if (uploadFilesToCloudConnection.sendingMultiple) {
         if (cloudConnection.status === QfCloudConnection.LoggedIn && cloudConnection.isReachable) {
-          displayToast(qsTr("Items being uploaded to QFieldCloud"));
+          displayToast(qsTr("Items being uploaded to %1").arg(Qfield.cloudName));
         } else {
-          displayToast(qsTr("Items queued for upload to QFieldCloud"));
+          displayToast(qsTr("Items queued for upload to %1").arg(Qfield.cloudName));
         }
 
         uploadFilesToCloudConnection.sendingMultiple = false;
         localFilesModel.clearSelection();
       } else {
         if (cloudConnection.status === QfCloudConnection.LoggedIn && cloudConnection.isReachable) {
-          displayToast(qsTr("‘%1’ is being uploaded to QFieldCloud").arg(QfFileUtils.fileName(itemMenu.itemPath)));
+          displayToast(qsTr("‘%1’ is being uploaded to %2").arg(QfFileUtils.fileName(itemMenu.itemPath)).arg(Qfield.cloudName));
         } else {
-          displayToast(qsTr("‘%1’ queued for upload to QFieldCloud").arg(QfFileUtils.fileName(itemMenu.itemPath)));
+          displayToast(qsTr("‘%1’ queued for upload to %2").arg(QfFileUtils.fileName(itemMenu.itemPath)).arg(Qfield.cloudName));
         }
       }
       uploadFilesToCloudConnection.enabled = false;
