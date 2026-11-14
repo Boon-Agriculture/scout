@@ -1097,7 +1097,7 @@ bool QgisMobileapp::print( const QString &layoutName )
       if ( item->type() == QgsLayoutItemRegistry::LayoutLabel && item->id() == QStringLiteral( "Title" ) )
       {
         QgsLayoutItemLabel *labelItem = qobject_cast<QgsLayoutItemLabel *>( item );
-        labelItem->setText( tr( "Map printed on %1 using QField" ).arg( "[%format_date(now(), 'yyyy-MM-dd @ hh:mm')%]" ) );
+        labelItem->setText( tr( "Map printed on %1 using %2" ).arg( "[%format_date(now(), 'yyyy-MM-dd @ hh:mm')%]", Qfield::appName ) );
       }
     }
     layoutToPrint = templateLayout.get();
