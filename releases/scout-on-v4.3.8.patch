@@ -1,0 +1,616 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 3b1185da2..e2d9c6646 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -16,4 +16,12 @@ set(APP_VERSION "0" CACHE STRING "Application Version (Example: v1.0.0)")
+ set(APP_VERSION_STR "local - dev" CACHE STRING "Application Version Name (Example: 1.0.0 - Homerun)")
+ set(APP_PACKAGE_NAME "qfield" CACHE STRING "Package name suffix. E.g. qfield --> ch.opengis.qfield")
++set(APP_ID "" CACHE STRING "Android application id shown to the stores (e.g. com.boonagric.scout). Empty = ch.opengis.${APP_PACKAGE_NAME}")
++set(APP_CLOUD_URL "https://app.qfield.cloud" CACHE STRING "Default cloud server the app opens on")
++set(APP_CLOUD_NAME "QFieldCloud" CACHE STRING "Name of the cloud service shown to users")
++set(APP_WEBSITE "https://qfield.org" CACHE STRING "Website of the brand")
++set(APP_SOURCE_URL "https://github.com/opengisch/QField" CACHE STRING "Where this build's source code is published (GPL)")
++if(NOT APP_ID)
++  set(APP_ID "ch.opengis.${APP_PACKAGE_NAME}")
++endif()
+ set(APP_BUNDLED_PLUGINS "" CACHE STRING "Application bundled plugins path")
+ 
+diff --git a/images/images.qrc b/images/images.qrc
+index b8ec42e4a..2aab2115e 100644
+--- a/images/images.qrc
++++ b/images/images.qrc
+@@ -69,4 +69,5 @@
+         <file>themes/qfield/nodpi/ic_map_param_48dp.svg</file>
+         <file>themes/qfield/nodpi/ic_file_black_24dp.svg</file>
++        <file>themes/qfield/nodpi/ic_scan_document_black_24dp.svg</file>
+         <file>themes/qfield/nodpi/ic_file_green_48dp.svg</file>
+         <file>themes/qfield/nodpi/ic_file_param_48dp.svg</file>
+diff --git a/platform/android/AndroidManifest.xml.in b/platform/android/AndroidManifest.xml.in
+index eeb293c56..d83c9e2c7 100644
+--- a/platform/android/AndroidManifest.xml.in
++++ b/platform/android/AndroidManifest.xml.in
+@@ -307,5 +307,5 @@
+     <provider
+         android:name="androidx.core.content.FileProvider"
+-        android:authorities="ch.opengis.@APP_PACKAGE_NAME@.fileprovider"
++        android:authorities="@APP_ID@.fileprovider"
+         android:exported="false"
+         android:grantUriPermissions="true">
+diff --git a/platform/android/build.gradle.in b/platform/android/build.gradle.in
+index 55cfb94f3..6bacaaa73 100644
+--- a/platform/android/build.gradle.in
++++ b/platform/android/build.gradle.in
+@@ -86,4 +86,5 @@ android {
+ 
+     defaultConfig {
++      applicationId = '@APP_ID@'
+       minSdkVersion = @ANDROID_PLATFORM_INT@
+       targetSdkVersion = @ANDROID_TARGET_PLATFORM@
+diff --git a/src/app/qgismobileapp.cpp b/src/app/qgismobileapp.cpp
+index d36957642..f299ae974 100644
+--- a/src/app/qgismobileapp.cpp
++++ b/src/app/qgismobileapp.cpp
+@@ -1088,5 +1088,5 @@ bool QgisMobileapp::print( const QString &layoutName )
+       {
+         QgsLayoutItemLabel *labelItem = qobject_cast<QgsLayoutItemLabel *>( item );
+-        labelItem->setText( tr( "Map printed on %1 using QField" ).arg( "[%format_date(now(), 'yyyy-MM-dd @ hh:mm')%]" ) );
++        labelItem->setText( tr( "Map printed on %1 using %2" ).arg( "[%format_date(now(), 'yyyy-MM-dd @ hh:mm')%]", Qfield::appName ) );
+       }
+     }
+diff --git a/src/app/qml/QfAppSettings.qml b/src/app/qml/QfAppSettings.qml
+index 03afdaf99..fce2e7493 100644
+--- a/src/app/qml/QfAppSettings.qml
++++ b/src/app/qml/QfAppSettings.qml
+@@ -1121,5 +1121,5 @@ Page {
+ 
+               Label {
+-                text: qsTr("Configure a network proxy to route QField's traffic through a proxy server. Useful for corporate networks and VPNs.")
++                text: qsTr("Configure a network proxy to route %1's traffic through a proxy server. Useful for corporate networks and VPNs.").arg(Qfield.name)
+                 font: QfTheme.tipFont
+                 color: QfTheme.secondaryTextColor
+diff --git a/src/app/qml/QfCloudLogin.qml b/src/app/qml/QfCloudLogin.qml
+index f9bcd96e5..3e5e05d2b 100644
+--- a/src/app/qml/QfCloudLogin.qml
++++ b/src/app/qml/QfCloudLogin.qml
+@@ -311,5 +311,5 @@ Item {
+       id: cloudIntroLabel
+       Layout.fillWidth: true
+-      text: qsTr('The easiest way to transfer you project from QGIS to your devices!') + (Qt.platform.os !== "ios" ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
++      text: qsTr('The easiest way to transfer you project from QGIS to your devices!') + (Qt.platform.os !== "ios" && !Qfield.whiteLabel ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
+       horizontalAlignment: Text.AlignHCenter
+       font: QfTheme.defaultFont
+diff --git a/src/app/qml/QfCloudPopup.qml b/src/app/qml/QfCloudPopup.qml
+index 7e2e09aea..5dff2f144 100644
+--- a/src/app/qml/QfCloudPopup.qml
++++ b/src/app/qml/QfCloudPopup.qml
+@@ -48,5 +48,5 @@ Popup {
+           return qsTr('Local changes');
+         default:
+-          return qsTr('QFieldCloud');
++          return Qfield.cloudName;
+         }
+       }
+@@ -192,5 +192,5 @@ Popup {
+             font: QfTheme.tipFont
+             color: QfTheme.secondaryTextColor
+-            text: qsTr('This QFieldCloud project was first downloaded with another cloud account. Please sign in with the original account for this project to use the QFieldCloud functionality.')
++            text: qsTr('This %1 project was first downloaded with another cloud account. Please sign in with the original account for this project to use the %1 functionality.').arg(Qfield.cloudName)
+ 
+             wrapMode: Text.WordWrap
+@@ -229,5 +229,5 @@ Popup {
+               case QfCloudProject.Downloading:
+                 if (packagingStatus === QfCloudProject.PackagingBusyStatus) {
+-                  return qsTr('QFieldCloud is packaging the latest data just for you; this might take some time, please hold tight');
++                  return qsTr('%1 is packaging the latest data just for you; this might take some time, please hold tight').arg(Qfield.cloudName);
+                 } else {
+                   if (packagingStatus === QfCloudProject.PackagingFinishedStatus || downloadProgress > 0.0) {
+@@ -238,5 +238,5 @@ Popup {
+                     }
+                   } else {
+-                    return qsTr('Reaching out to QFieldCloud to download project');
++                    return qsTr('Reaching out to %1 to download project').arg(Qfield.cloudName);
+                   }
+                 }
+@@ -246,5 +246,5 @@ Popup {
+                   return qsTr('Pushing changes, %1%…').arg(Math.round(cloudProjectsModel.currentProject.pushDeltaProgress * 100));
+                 default:
+-                  return qsTr('QFieldCloud is applying the latest pushed changes. This might take some time, please hold tight…');
++                  return qsTr('%1 is applying the latest pushed changes. This might take some time, please hold tight…').arg(Qfield.cloudName);
+                 }
+               default:
+@@ -394,5 +394,5 @@ Popup {
+               iconSource: QfTheme.getThemeVectorIcon('ic_cloud_active_24dp')
+               title: qsTr('Cloudify project')
+-              description: localProjectGrid.isCloudifying ? qsTr('Uploading the current project to QFieldCloud.') : qsTr('The current project is not stored on QFieldCloud. Storing projects on QFieldCloud offers seamless synchronization, offline editing, and team management.') + (Qt.platform.os !== "ios" ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
++              description: localProjectGrid.isCloudifying ? qsTr('Uploading the current project to %1.').arg(Qfield.cloudName) : qsTr('The current project is not stored on %1. Storing projects on %1 offers seamless synchronization, offline editing, and team management.').arg(Qfield.cloudName) + (Qt.platform.os !== "ios" && !Qfield.whiteLabel ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
+ 
+               QfCollapsibleMessage {
+@@ -670,5 +670,5 @@ Popup {
+                 title: qsTr('Synchronize project')
+                 indicatorVisible: cloudProjectsModel.currentProject && (cloudProjectsModel.currentProject.isOutdated || cloudProjectsModel.currentProject.isProjectOutdated)
+-                description: qsTr('Uploads your edits, then downloads the latest project from QFieldCloud so everything is up to date.')
++                description: qsTr('Uploads your edits, then downloads the latest project from %1 so everything is up to date.').arg(Qfield.cloudName)
+                 footnote: {
+                   if (!cloudProjectsModel.currentProject) {
+diff --git a/src/app/qml/QfCloudProjectDetails.qml b/src/app/qml/QfCloudProjectDetails.qml
+index 7eb2c9792..1448c542e 100644
+--- a/src/app/qml/QfCloudProjectDetails.qml
++++ b/src/app/qml/QfCloudProjectDetails.qml
+@@ -358,5 +358,5 @@ ColumnLayout {
+       if (showProgress) {
+         if (cloudProject.packagingStatus === QfCloudProject.PackagingBusyStatus) {
+-          return qsTr("QFieldCloud is packaging project, hold tight");
++          return qsTr("%1 is packaging project, hold tight").arg(Qfield.cloudName);
+         } else {
+           if (cloudProject.downloadProgress > 0) {
+diff --git a/src/app/qml/QfCloudScreen.qml b/src/app/qml/QfCloudScreen.qml
+index 7773d1821..ac45faa4f 100644
+--- a/src/app/qml/QfCloudScreen.qml
++++ b/src/app/qml/QfCloudScreen.qml
+@@ -27,5 +27,5 @@ Page {
+ 
+   header: QfPageHeader {
+-    title: qsTr("QFieldCloud")
++    title: Qfield.cloudName
+ 
+     showBackButton: true
+@@ -475,5 +475,5 @@ Page {
+                         case QfCloudProject.Downloading:
+                           if (PackagingStatus === QfCloudProject.PackagingBusyStatus) {
+-                            status = qsTr('QFieldCloud is packaging the latest data just for you; this might take some time, please hold tight');
++                            status = qsTr('%1 is packaging the latest data just for you; this might take some time, please hold tight').arg(Qfield.cloudName);
+                           } else {
+                             if (PackagingStatus === QfCloudProject.PackagingFinishedStatus || DownloadProgress > 0.0) {
+@@ -484,5 +484,5 @@ Page {
+                               }
+                             } else {
+-                              status = qsTr('Reaching out to QFieldCloud to download project');
++                              status = qsTr('Reaching out to %1 to download project').arg(Qfield.cloudName);
+                             }
+                           }
+@@ -674,5 +674,5 @@ Page {
+               } else {
+                 labelText = qsTr("No cloud projects found.");
+-                if (Qt.platform !== "ios") {
++                if (Qt.platform !== "ios" && !Qfield.whiteLabel) {
+                   labelText += "\n\n" + qsTr("To get started, %1read the documentation%2.").arg("<a href=\"https://docs.qfield.org/get-started/tutorials/get-started-qfc/\">").arg("</a>");
+                 }
+@@ -1079,5 +1079,5 @@ Page {
+         requestedProjectDetails = "";
+         if (hasError) {
+-          displayToast(qsTr("QFieldCloud project details fetching failed"));
++          displayToast(qsTr("%1 project details fetching failed").arg(Qfield.cloudName));
+         } else {
+           projectDetails.cloudProject = cloudProjectsModel.findProject(projectId);
+diff --git a/src/app/qml/QfLocalDataPickerScreen.qml b/src/app/qml/QfLocalDataPickerScreen.qml
+index 5662dd5fc..efbf21602 100644
+--- a/src/app/qml/QfLocalDataPickerScreen.qml
++++ b/src/app/qml/QfLocalDataPickerScreen.qml
+@@ -549,5 +549,5 @@ Page {
+         leftPadding: QfTheme.menuItemLeftPadding
+ 
+-        text: qsTr("Push to QFieldCloud")
++        text: qsTr("Push to %1").arg(Qfield.cloudName)
+         onTriggered: {
+           pushFilesToQFieldCloudConnection.enabled = true;
+@@ -958,5 +958,5 @@ Page {
+         leftPadding: QfTheme.menuItemLeftPadding
+ 
+-        text: qsTr("Push file(s) to QFieldCloud")
++        text: qsTr("Push file(s) to %1").arg(Qfield.cloudName)
+         onTriggered: {
+           var fileNames = [];
+@@ -972,5 +972,5 @@ Page {
+             QfCloudUtils.addPendingAttachments(cloudConnection.userInformation.username, QfCloudUtils.getProjectId(table.model.currentPath), fileNames, cloudConnection, true);
+           } else {
+-            displayToast(qsTr("Please select one or more files to push to QFieldCloud."));
++            displayToast(qsTr("Please select one or more files to push to %1.").arg(Qfield.cloudName));
+           }
+         }
+@@ -1038,9 +1038,9 @@ Page {
+       platformUtilities.uploadPendingAttachments(cloudConnection);
+       if (pushFilesToQFieldCloudConnection.sendingMultiple) {
+-        displayToast(qsTr("‘%1’ is being uploaded to QFieldCloud").arg(QfFileUtils.fileName(itemMenu.itemPath)));
++        displayToast(qsTr("‘%1’ is being uploaded to %2").arg(QfFileUtils.fileName(itemMenu.itemPath)).arg(Qfield.cloudName));
+         pushFilesToQFieldCloudConnection.sendingMultiple = false;
+       } else {
+         localFilesModel.clearSelection();
+-        displayToast(qsTr("Items being uploaded to QFieldCloud"));
++        displayToast(qsTr("Items being uploaded to %1").arg(Qfield.cloudName));
+       }
+       pushFilesToQFieldCloudConnection.enabled = false;
+diff --git a/src/app/qml/QfWelcomeScreen.qml b/src/app/qml/QfWelcomeScreen.qml
+index e9eac1d55..739f263a2 100644
+--- a/src/app/qml/QfWelcomeScreen.qml
++++ b/src/app/qml/QfWelcomeScreen.qml
+@@ -209,5 +209,5 @@ Page {
+ 
+                 onClicked: {
+-                  Qt.openUrlExternally("https://www.qfield.org/");
++                  Qt.openUrlExternally(Qfield.websiteUrl);
+                   feedbackView.Layout.preferredHeight = 0;
+                 }
+@@ -535,5 +535,5 @@ Page {
+               iconSource: QfTheme.getThemeVectorIcon("ic_cloud_active_24dp")
+               iconColor: QfTheme.cloudColor
+-              label: qsTr("QFieldCloud\nprojects")
++              label: Qfield.whiteLabel ? qsTr("Cloud\nprojects") : qsTr("QFieldCloud\nprojects")
+               onClicked: showQFieldCloudScreen()
+             }
+diff --git a/src/app/qml/QgisMobileapp.qml b/src/app/qml/QgisMobileapp.qml
+index 19d2d9b23..ac12fa77d 100644
+--- a/src/app/qml/QgisMobileapp.qml
++++ b/src/app/qml/QgisMobileapp.qml
+@@ -5371,9 +5371,9 @@ ApplicationWindow {
+       if (hasError) {
+         qfieldCloudStatus.refresh();
+-        displayToast(qsTr("Changes failed to reach QFieldCloud: %1").arg(errorString), 'error');
++        displayToast(qsTr("Changes failed to reach %1: %2").arg(Qfield.cloudName).arg(errorString), 'error');
+         return;
+       }
+       if (!isDownloadingProject && (qfieldCloudScreen.visible || qfieldCloudPopup.visible || welcomeScreen.visible)) {
+-        displayToast(qsTr("Changes successfully pushed to QFieldCloud"));
++        displayToast(qsTr("Changes successfully pushed to %1").arg(Qfield.cloudName));
+       }
+       if (QfCloudUtils.hasPendingAttachments(cloudConnection.username)) {
+@@ -5903,6 +5903,6 @@ ApplicationWindow {
+       {
+         "type": "information",
+-        "title": qsTr("QFieldCloud"),
+-        "description": qsTr("Upload local changes, synchronize or discard changes to and from QFieldCloud when a cloud project is opened."),
++        "title": Qfield.cloudName,
++        "description": qsTr("Upload local changes, synchronize or discard changes to and from %1 when a cloud project is opened.").arg(Qfield.cloudName),
+         "target": () => [iface.findItemByObjectName('cloudButton')]
+       },
+@@ -5910,5 +5910,5 @@ ApplicationWindow {
+         "type": "information",
+         "title": qsTr("Project folder"),
+-        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to QFieldCloud, and sharing datasets, attachments, and layouts."),
++        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to %1, and sharing datasets, attachments, and layouts.").arg(Qfield.cloudName),
+         "target": () => [iface.findItemByObjectName('projectFolderButton')]
+       }
+@@ -5927,5 +5927,5 @@ ApplicationWindow {
+         "type": "information",
+         "title": qsTr("Local changes"),
+-        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to QFieldCloud."),
++        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to %1.").arg(Qfield.cloudName),
+         "target": () => [iface.findItemByObjectName('cloudButton')]
+       }
+@@ -5942,5 +5942,5 @@ ApplicationWindow {
+         "type": "information",
+         "title": qsTr("Local changes"),
+-        "description": qsTr("This cloud project has pending changes which have not been uploaded yet. Open the dashboard using this button, then tap the blue cloud icon to send them to QFieldCloud."),
++        "description": qsTr("This cloud project has pending changes which have not been uploaded yet. Open the dashboard using this button, then tap the blue cloud icon to send them to %1.").arg(Qfield.cloudName),
+         "target": () => [menuButton]
+       }
+diff --git a/src/core/CMakeLists.txt b/src/core/CMakeLists.txt
+index 59c94e32f..77ff284bb 100644
+--- a/src/core/CMakeLists.txt
++++ b/src/core/CMakeLists.txt
+@@ -9,4 +9,5 @@ set(QFIELD_CORE_SRCS
+     utils/qfexpressioncontextutils.cpp
+     utils/qffeatureutils.cpp
++    utils/qfdocumentscanutils.cpp
+     utils/qffileutils.cpp
+     utils/qfgeometryutils.cpp
+@@ -126,4 +127,5 @@ set(QFIELD_CORE_HDRS
+     utils/qfexpressioncontextutils.h
+     utils/qffeatureutils.h
++    utils/qfdocumentscanutils.h
+     utils/qffileutils.h
+     utils/qfgeometryutils.h
+diff --git a/src/core/platforms/android/qfandroidplatformutilities.cpp b/src/core/platforms/android/qfandroidplatformutilities.cpp
+index 4ea6c4b55..a3ae0d263 100644
+--- a/src/core/platforms/android/qfandroidplatformutilities.cpp
++++ b/src/core/platforms/android/qfandroidplatformutilities.cpp
+@@ -100,5 +100,5 @@ void QfAndroidPlatformUtilities::afterUpdate()
+       if ( activity.isValid() )
+       {
+-        QJniObject messageJni = QJniObject::fromString( QObject::tr( "Please wait while QField installation finalizes." ) );
++        QJniObject messageJni = QJniObject::fromString( QObject::tr( "Please wait while %1 installation finalizes." ).arg( Qfield::appName ) );
+         activity.callMethod<void>( "showBlockingProgressDialog", "(Ljava/lang/String;)V", messageJni.object<jstring>() );
+       }
+diff --git a/src/core/qfcore.cpp b/src/core/qfcore.cpp
+index 531930f9d..ce4b7e02c 100644
+--- a/src/core/qfcore.cpp
++++ b/src/core/qfcore.cpp
+@@ -94,4 +94,5 @@
+ #include "utils/qfexpressioncontextutils.h"
+ #include "utils/qffeatureutils.h"
++#include "utils/qfdocumentscanutils.h"
+ #include "utils/qffileutils.h"
+ #include "utils/qfgeometryutils.h"
+@@ -220,4 +221,5 @@ namespace QfCore
+     REGISTER_SINGLETON( "org.qfield.core", QfExpressionContextUtils, "QfExpressionContextUtils" );
+     REGISTER_SINGLETON( "org.qfield.core", QfFeatureUtils, "QfFeatureUtils" );
++    REGISTER_SINGLETON( "org.qfield.core", QfDocumentScanUtils, "QfDocumentScanUtils" );
+     REGISTER_SINGLETON( "org.qfield.core", QfFileUtils, "QfFileUtils" );
+     REGISTER_SINGLETON( "org.qfield.core", QfGeometryUtils, "QfGeometryUtils" );
+diff --git a/src/core/qfield.h.in b/src/core/qfield.h.in
+index 3ec76ec90..dd944a662 100644
+--- a/src/core/qfield.h.in
++++ b/src/core/qfield.h.in
+@@ -66,4 +66,16 @@ class QFIELD_CORE_EXPORT Qfield
+     Q_PROPERTY( bool hasSerialPort READ hasSerialPort CONSTANT )
+ 
++    //! Name of the cloud service shown to users
++    Q_PROPERTY( QString cloudName READ cloudName CONSTANT )
++
++    //! Website of the brand
++    Q_PROPERTY( QString websiteUrl READ websiteUrl CONSTANT )
++
++    //! Where this build's source code is published
++    Q_PROPERTY( QString sourceUrl READ sourceUrl CONSTANT )
++
++    //! TRUE when the build carries another brand and opens on another server than QField's
++    Q_PROPERTY( bool whiteLabel READ whiteLabel CONSTANT )
++
+   public:
+     static inline const QString appName{ QStringLiteral( "@APP_NAME@" ) };
+@@ -71,4 +83,8 @@ class QFIELD_CORE_EXPORT Qfield
+     static inline const QString appVersionStr{ QStringLiteral( "@APP_VERSION_STR@" ) };
+     static inline const QString gitRev{ QStringLiteral( "@GIT_REV@" ) };
++    static inline const QString cloudDefaultUrl{ QStringLiteral( "@APP_CLOUD_URL@" ) };
++    static inline const QString appCloudName{ QStringLiteral( "@APP_CLOUD_NAME@" ) };
++    static inline const QString appWebsite{ QStringLiteral( "@APP_WEBSITE@" ) };
++    static inline const QString appSourceUrl{ QStringLiteral( "@APP_SOURCE_URL@" ) };
+ 
+     QString name() const { return appName; }
+@@ -76,4 +92,9 @@ class QFIELD_CORE_EXPORT Qfield
+     QString versionString() const { return appVersionStr; }
+     QString gitRevision() const { return gitRev; }
++    QString cloudName() const { return appCloudName; }
++    QString websiteUrl() const { return appWebsite; }
++    QString sourceUrl() const { return appSourceUrl; }
++    static bool isWhiteLabel() { return cloudDefaultUrl != QLatin1String( "https://app.qfield.cloud" ); }
++    bool whiteLabel() const { return isWhiteLabel(); }
+     QString qtVersion() const;
+     QString qgisVersion() const;
+diff --git a/src/core/qfieldcloud/qfcloudconnection.cpp b/src/core/qfieldcloud/qfcloudconnection.cpp
+index 08493a973..63e4064d6 100644
+--- a/src/core/qfieldcloud/qfcloudconnection.cpp
++++ b/src/core/qfieldcloud/qfcloudconnection.cpp
+@@ -16,4 +16,5 @@
+ #include "qfcloudconnection.h"
+ #include "qfcloudutils.h"
++#include "qfield.h"
+ 
+ #include <QDirIterator>
+@@ -44,5 +45,5 @@ QfCloudConnection::QfCloudConnection()
+   , mServerInformation( QSettings().value( QStringLiteral( "/QFieldCloud/serverInformation" ) ).toMap() )
+ {
+-  if ( mUrl == defaultUrl() && mServerInformation.signupUrl.isEmpty() )
++  if ( mUrl == defaultUrl() && mServerInformation.signupUrl.isEmpty() && defaultUrl() == QStringLiteral( "https://app.qfield.cloud" ) )
+   {
+     mServerInformation.signupUrl = QStringLiteral( "https://app.qfield.cloud/accounts/signup/" );
+@@ -158,5 +159,5 @@ bool QfCloudConnection::isReachable() const
+ QMap<QString, QString> QfCloudConnection::sErrors = QMap<QString, QString>(
+   {
+-    { "unknown_error", QObject::tr( "QFieldCloud Unknown Error" ) },
++    { "unknown_error", QObject::tr( "Unknown cloud error" ) },
+     { "status_not_ok", QObject::tr( "Status not ok" ) },
+     { "empty_content", QObject::tr( "Empty content" ) },
+@@ -210,5 +211,5 @@ void QfCloudConnection::setUrl( const QString &url )
+ QString QfCloudConnection::defaultUrl()
+ {
+-  return QStringLiteral( "https://app.qfield.cloud" );
++  return Qfield::cloudDefaultUrl;
+ }
+ 
+diff --git a/src/core/qfieldcloud/qfcloudproject.cpp b/src/core/qfieldcloud/qfcloudproject.cpp
+index 841e42185..476021177 100644
+--- a/src/core/qfieldcloud/qfcloudproject.cpp
++++ b/src/core/qfieldcloud/qfcloudproject.cpp
+@@ -1574,5 +1574,5 @@ void QfCloudProject::logFailedDownload( const QString &fileKey, const QString &e
+   const QString trimmedMessage = baseMessage + QStringLiteral( " " ) + tr( "System message: " )
+                                  + ( ( errorMessageDetail.size() > 100 )
+-                                       ? ( errorMessageDetail.left( 100 ) + tr( " (see more in the QField error log)…" ) )
++                                       ? ( errorMessageDetail.left( 100 ) + tr( " (see more in the error log)…" ) )
+                                        : errorMessageDetail );
+ 
+diff --git a/src/core/utils/qfcloudutils.cpp b/src/core/utils/qfcloudutils.cpp
+index b75e2800c..860c44b7f 100644
+--- a/src/core/utils/qfcloudutils.cpp
++++ b/src/core/utils/qfcloudutils.cpp
+@@ -17,4 +17,5 @@
+ #include "qfcloudutils.h"
+ #include "qffileutils.h"
++#include "qfield.h"
+ #include "qfplatformutilities.h"
+ #include "qfstringutils.h"
+@@ -121,5 +122,5 @@ QString QfCloudUtils::userFriendlyErrorString( const QString &errorString )
+ QString QfCloudUtils::documentationFromErrorString( const QString &errorString )
+ {
+-  if ( errorString.contains( errorCodeOverQuota() ) )
++  if ( errorString.contains( errorCodeOverQuota() ) && !Qfield::isWhiteLabel() )
+   {
+     return QStringLiteral( "https://docs.qfield.org/get-started/storage-qfc/#adding-qfieldcloud-storage" );
+@@ -429,6 +430,7 @@ void QfCloudUtils::removePendingAttachment( const QString &username, const QStri
+ QString QfCloudUtils::subscriptionManagementUrl( const QString &serverUrl, const QString &plan, const QString &projectOwner, const QString &username )
+ {
+-  if ( serverUrl != QfCloudConnection::defaultUrl() )
++  if ( serverUrl != QStringLiteral( "https://app.qfield.cloud" ) )
+   {
++    // Plans and billing pages only exist on QField's own cloud
+     return QString();
+   }
+diff --git a/src/gui/qflocalfilesmodel.cpp b/src/gui/qflocalfilesmodel.cpp
+index 50064fb23..98a15e8a9 100644
+--- a/src/gui/qflocalfilesmodel.cpp
++++ b/src/gui/qflocalfilesmodel.cpp
+@@ -145,5 +145,5 @@ const QString QfLocalFilesModel::getCurrentTitleFromPath( const QString &path )
+   else if ( path == QfPlatformUtilities::instance()->applicationDirectory() )
+   {
+-    return tr( "QField files directory" );
++    return tr( "%1 files directory" ).arg( Qfield::appName );
+   }
+   else if ( path == mCreatedProjectsPath )
+@@ -253,5 +253,5 @@ void QfLocalFilesModel::reloadModel()
+     if ( !applicationDirectory.isEmpty() )
+     {
+-      mItems << QfLocalFileItem( ItemMetaType::Folder, ItemType::ApplicationFolder, tr( "QField files directory" ), QString(), applicationDirectory );
++      mItems << QfLocalFileItem( ItemMetaType::Folder, ItemType::ApplicationFolder, tr( "%1 files directory" ).arg( Qfield::appName ), QString(), applicationDirectory );
+     }
+ 
+diff --git a/src/gui/qml/CMakeLists.txt b/src/gui/qml/CMakeLists.txt
+index 05cbb4bd2..23b308513 100644
+--- a/src/gui/qml/CMakeLists.txt
++++ b/src/gui/qml/CMakeLists.txt
+@@ -19,4 +19,5 @@ set(QFIELD_GUI_QML_FILES
+     QfCogoOperations.qml
+     QfCollapsibleMessage.qml
++    QfDocumentScanner.qml
+     QfComboBox.qml
+     QfConfirmationToolbar.qml
+diff --git a/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml b/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml
+index 5fc249ab0..190cbc2fc 100644
+--- a/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml
++++ b/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml
+@@ -76,4 +76,10 @@ QfEditorWidgetBase {
+   property bool isImage: false
+   property bool isAudio: false
++
++  // Scout document scanning: a layer's custom property "scout/capture_mode/<field name>"
++  // set to "scan" makes scanning the field's default; photo stays one tap away.
++  readonly property string captureMode: currentLayer && field ? QfDocumentScanUtils.captureMode(currentLayer, field.name) : "photo"
++  property bool scanCapture: false
++  property string scanBasePath: ""
+   property bool isVideo: false
+ 
+@@ -227,5 +233,5 @@ QfEditorWidgetBase {
+ 
+     anchors.left: parent.left
+-    anchors.right: cameraButton.left
++    anchors.right: scanButton.left
+     color: {
+       if ((!isEditable && isEditing) || isNull || isEmpty) {
+@@ -281,5 +287,5 @@ QfEditorWidgetBase {
+   Rectangle {
+     id: mediaFrame
+-    width: parent.width - fileButton.width - cameraButton.width - cameraVideoButton.width - microphoneButton.width - (isEnabled ? 5 : 0)
++    width: parent.width - fileButton.width - scanButton.width - cameraButton.width - cameraVideoButton.width - microphoneButton.width - (isEnabled ? 5 : 0)
+     height: 48
+     visible: !linkField.isVisible
+@@ -589,4 +595,21 @@ QfEditorWidgetBase {
+   }
+ 
++  QfToolButton {
++    id: scanButton
++    width: visible ? QfTheme.toolButtonSize : 0
++    height: QfTheme.toolButtonSize
++
++    visible: documentViewer == QfEditorWidgetExternalResource.DocumentImage && isEnabled
++
++    anchors.right: cameraButton.left
++    anchors.top: parent.top
++
++    iconSource: QfTheme.getThemeVectorIcon("ic_scan_document_black_24dp")
++    iconColor: captureMode === "scan" ? QfTheme.mainColor : QfTheme.mainTextColor
++    bgcolor: "transparent"
++
++    onClicked: captureScan()
++  }
++
+   QfToolButton {
+     id: cameraButton
+@@ -719,4 +742,9 @@ QfEditorWidgetBase {
+ 
+       onFinished: path => {
++        if (scanCapture) {
++          close();
++          receiveScanPhoto(path);
++          return;
++        }
+         const filepath = QfStringUtils.replaceFilenameTags(getResourceFilePath(), path);
+         platformUtilities.renameFile(path, prefixToRelativePath + filepath);
+@@ -731,5 +759,10 @@ QfEditorWidgetBase {
+       }
+ 
+-      onCanceled: close()
++      onCanceled: {
++        close();
++        if (scanCapture && !documentScanner.opened) {
++          scanCapture = false;
++        }
++      }
+       onClosed: cameraLoader.active = false
+     }
+@@ -739,4 +772,13 @@ QfEditorWidgetBase {
+     target: __resourceSource
+     function onResourceReceived(path) {
++      if (path && scanCapture) {
++        // Scans keep full resolution: the page is read later, so no size limit here
++        receiveScanPhoto(prefixToRelativePath + path);
++        return;
++      }
++      if (!path && scanCapture && !documentScanner.opened) {
++        scanCapture = false;
++        return;
++      }
+       if (path) {
+         const maximumWidhtHeight = iface.readProjectNumEntry("qfieldsync", "maximumImageWidthHeight", 0);
+@@ -781,5 +823,5 @@ QfEditorWidgetBase {
+       if (downloadAttachmentFileName === fileName) {
+         if (errorString !== "") {
+-          displayToast(qsTr("QFieldCloud on-demand attachment error: ") + errorString, 'error');
++          displayToast(qsTr("%1 on-demand attachment error: ").arg(Qfield.cloudName) + errorString, 'error');
+         } else {
+           prepareValue(prefixToRelativePath + fileName);
+@@ -813,4 +855,46 @@ QfEditorWidgetBase {
+   }
+ 
++  QfDocumentScanner {
++    id: documentScanner
++
++    onPhotoRequested: retake => takeScanPhoto()
++
++    onFinished: path => {
++      scanCapture = false;
++      valueChangeRequested(path.substring(prefixToRelativePath.length), false);
++    }
++
++    onCanceled: {
++      scanCapture = false;
++    }
++  }
++
++  function captureScan() {
++    Qt.inputMethod.hide();
++    let filepath = getResourceFilePath();
++    filepath = filepath.replace('{extension}', 'JPG');
++    // The scan is saved next to where the photo would go, under the same name with "_scan"
++    scanBasePath = prefixToRelativePath + filepath.replace(/\.[^./]*$/, '') + '_scan';
++    documentScanner.outputBasePath = scanBasePath;
++    scanCapture = true;
++    takeScanPhoto();
++  }
++
++  function takeScanPhoto() {
++    const stamp = new Date().toISOString().replace(/[^0-9]/g, '').substring(0, 17);
++    if (platformUtilities.capabilities & QfPlatformUtilities.NativeCamera && settings.valueBool("nativeCamera2", true)) {
++      const photoPath = scanBasePath.substring(prefixToRelativePath.length) + '_photo' + stamp + '.JPG';
++      __resourceSource = platformUtilities.getCameraPicture(qgisProject.homePath + '/', photoPath, 'JPG', this);
++    } else {
++      platformUtilities.createDir(qgisProject.homePath, 'DCIM');
++      cameraLoader.isVideo = false;
++      cameraLoader.active = true;
++    }
++  }
++
++  function receiveScanPhoto(fullPath) {
++    documentScanner.addPhoto(fullPath);
++  }
++
+   function capturePhoto() {
+     Qt.inputMethod.hide();
+diff --git a/src/gui/qml/editorwidgets/relationeditors/gallery_relation_editor.qml b/src/gui/qml/editorwidgets/relationeditors/gallery_relation_editor.qml
+index 8f0b6d36f..90a41f0a8 100644
+--- a/src/gui/qml/editorwidgets/relationeditors/gallery_relation_editor.qml
++++ b/src/gui/qml/editorwidgets/relationeditors/gallery_relation_editor.qml
+@@ -139,5 +139,5 @@ QfRelationEditorBase {
+         if (errorString !== "") {
+           relationEditor.failedDownloads.push(fileName);
+-          displayToast(qsTr("QFieldCloud on-demand attachment error: ") + errorString, 'error');
++          displayToast(qsTr("%1 on-demand attachment error: ").arg(Qfield.cloudName) + errorString, 'error');
+         }
+         let pds = Array.from(relationEditor.pendingDownloads);
