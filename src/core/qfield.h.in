@@ -65,17 +65,37 @@ class QFIELD_CORE_EXPORT Qfield
     //! TRUE when the build supports serial ports
     Q_PROPERTY( bool hasSerialPort READ hasSerialPort CONSTANT )
 
+    //! Name of the cloud service shown to users
+    Q_PROPERTY( QString cloudName READ cloudName CONSTANT )
+
+    //! Website of the brand
+    Q_PROPERTY( QString websiteUrl READ websiteUrl CONSTANT )
+
+    //! Where this build's source code is published
+    Q_PROPERTY( QString sourceUrl READ sourceUrl CONSTANT )
+
+    //! TRUE when the build carries another brand and opens on another server than QField's
+    Q_PROPERTY( bool whiteLabel READ whiteLabel CONSTANT )
+
   public:
     static inline const QString appName{ QStringLiteral( "@APP_NAME@" ) };
     static inline const QString appVersion{ QStringLiteral( "@APP_VERSION@" ) };
     static inline const QString appVersionStr{ QStringLiteral( "@APP_VERSION_STR@" ) };
     static inline const QString gitRev{ QStringLiteral( "@GIT_REV@" ) };
     static inline const QString cloudDefaultUrl{ QStringLiteral( "@APP_CLOUD_URL@" ) };
+    static inline const QString appCloudName{ QStringLiteral( "@APP_CLOUD_NAME@" ) };
+    static inline const QString appWebsite{ QStringLiteral( "@APP_WEBSITE@" ) };
+    static inline const QString appSourceUrl{ QStringLiteral( "@APP_SOURCE_URL@" ) };
 
     QString name() const { return appName; }
     QString version() const { return appVersion; }
     QString versionString() const { return appVersionStr; }
     QString gitRevision() const { return gitRev; }
+    QString cloudName() const { return appCloudName; }
+    QString websiteUrl() const { return appWebsite; }
+    QString sourceUrl() const { return appSourceUrl; }
+    static bool isWhiteLabel() { return cloudDefaultUrl != QLatin1String( "https://app.qfield.cloud" ); }
+    bool whiteLabel() const { return isWhiteLabel(); }
     QString qtVersion() const;
     QString qgisVersion() const;
     QString gdalVersion() const;
