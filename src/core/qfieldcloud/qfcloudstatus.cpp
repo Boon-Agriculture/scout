@@ -14,6 +14,7 @@
  ***************************************************************************/
 
 #include "qfcloudstatus.h"
+#include "qfield.h"
 #include "qfnetworkmanager.h"
 #include "qfnetworkreply.h"
 
@@ -122,7 +123,7 @@ void QfCloudStatus::fetchStatus()
       {
         mHasProblem = true;
         mStatusType = StatusType::Incident;
-        mStatusMessage = tr( "QFieldCloud server is not reachable" );
+        mStatusMessage = tr( "%1 server is not reachable" ).arg( Qfield::appCloudName );
         mDetailsMessage = tr( "The server at %1 could not be reached. Please check your internet connection." ).arg( mUrl );
 
         if ( mStatusPageUrl.isEmpty() && mUrl == QStringLiteral( "https://app.qfield.cloud" ) )
@@ -185,14 +186,14 @@ void QfCloudStatus::parseStatusResponse( const QByteArray &data )
 
     if ( hasMaintenance )
     {
-      messages << tr( "QFieldCloud is under maintenance" );
+      messages << tr( "%1 is under maintenance" ).arg( Qfield::appCloudName );
       details << mMaintenanceMessage;
       mStatusType = StatusType::Maintenance;
     }
 
     if ( databaseDegraded || storageDegraded )
     {
-      messages << tr( "QFieldCloud service is degraded" );
+      messages << tr( "%1 service is degraded" ).arg( Qfield::appCloudName );
       mStatusType = StatusType::Degraded;
     }
 
