@@ -232,7 +232,7 @@ Item {
 
             Text {
               Layout.fillWidth: true
-              text: qsTr("Subscribe to the QFieldCloud newsletter")
+              text: qsTr("Subscribe to the %1 newsletter").arg(Qfield.cloudName)
               font: QfTheme.defaultFont
               color: QfTheme.mainTextColor
               wrapMode: Text.WordWrap
@@ -286,7 +286,7 @@ Item {
 
             Text {
               Layout.fillWidth: true
-              text: qsTr("By checking this, you agree with the QFieldCloud %1Terms of Services (ToS)%2 and the %3Data Processing Agreement (DPA)%4.").arg('<a href="https://qfield.cloud/tos">').arg('</a>').arg('<a href="https://qfield.cloud/dpa">').arg('</a>')
+              text: qsTr("By checking this, you agree with the %5 %1Terms of Services (ToS)%2 and the %3Data Processing Agreement (DPA)%4.").arg('<a href="https://qfield.cloud/tos">').arg('</a>').arg('<a href="https://qfield.cloud/dpa">').arg('</a>').arg(Qfield.cloudName)
               font: QfTheme.tipFont
               color: QfTheme.secondaryTextColor
               linkColor: QfTheme.cloudColor
