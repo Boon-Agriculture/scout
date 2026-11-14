@@ -26,7 +26,7 @@ Page {
   rightPadding: mainWindow.sceneRightMargin
 
   header: QfPageHeader {
-    title: qsTr("QFieldCloud")
+    title: Qfield.cloudName
 
     showBackButton: true
     showApplyButton: false
@@ -682,7 +682,7 @@ Page {
                 }
               } else {
                 labelText = qsTr("No cloud projects found.");
-                if (Qt.platform.os !== "ios") {
+                if (Qt.platform.os !== "ios" && !Qfield.whiteLabel) {
                   labelText += "\n\n" + qsTr("To get started, %1read the documentation%2.").arg("<a href=\"https://docs.qfield.org/get-started/tutorials/get-started-qfc/\">").arg("</a>");
                 }
               }
@@ -1142,7 +1142,7 @@ Page {
       if (requestedProjectDetails != "") {
         requestedProjectDetails = "";
         if (hasError) {
-          displayToast(qsTr("QFieldCloud project details fetching failed"));
+          displayToast(qsTr("%1 project details fetching failed").arg(Qfield.cloudName));
         } else {
           projectDetails.cloudProject = cloudProjectsModel.findProject(projectId);
           projectsSwipeView.currentIndex = 1;
