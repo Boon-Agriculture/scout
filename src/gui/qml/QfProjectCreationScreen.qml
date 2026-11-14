@@ -46,7 +46,7 @@ Page {
       spacing: 10
 
       Label {
-        text: qsTr("This page will guide you through the creation of a simple project through simple configuration toggles. For more advanced needs, we advise you to create projects in QGIS using QFieldSync.")
+        text: Qfield.whiteLabel ? qsTr("This page will guide you through the creation of a simple project through simple configuration toggles. For more advanced needs, ask your administrator to set up the project.") : qsTr("This page will guide you through the creation of a simple project through simple configuration toggles. For more advanced needs, we advise you to create projects in QGIS using QFieldSync.")
         font: QfTheme.defaultFont
         color: QfTheme.mainTextColor
         wrapMode: Text.WordWrap
@@ -485,7 +485,7 @@ Page {
           spacing: 8
 
           Label {
-            text: qsTr("QFieldCloud allows to synchronize and merge the data collected by your team in %1. From small individual projects to large data collection campaigns. ").arg(Qfield.name) + (Qt.platform.os !== "ios" ? "<a href=\"https://qfield.cloud/\">" + qsTr("Learn more about QFieldCloud here") + "</a>." : "")
+            text: qsTr("%2 allows to synchronize and merge the data collected by your team in %1. From small individual projects to large data collection campaigns. ").arg(Qfield.name).arg(Qfield.cloudName) + (Qt.platform.os !== "ios" && !Qfield.whiteLabel ? "<a href=\"https://qfield.cloud/\">" + qsTr("Learn more about QFieldCloud here") + "</a>." : "")
             font: QfTheme.defaultFont
             color: QfTheme.secondaryTextColor
             wrapMode: Text.WordWrap
