@@ -66,7 +66,7 @@ Item {
               sourceSize.width: width * screen.devicePixelRatio
               sourceSize.height: height * screen.devicePixelRatio
             }
-            onClicked: Qt.openUrlExternally("https://qfield.org/")
+            onClicked: Qt.openUrlExternally(Qfield.websiteUrl)
           }
 
           Label {
@@ -79,14 +79,18 @@ Item {
             wrapMode: Text.WordWrap
 
             text: {
-              let links = '<a href="https://github.com/opengisch/QField/commit/' + Qfield.gitRevision + '">' + Qfield.gitRevision.substr(0, 7) + '</a>';
+              let links = '<a href="' + Qfield.sourceUrl + '/commit/' + Qfield.gitRevision + '">' + Qfield.gitRevision.substr(0, 7) + '</a>';
               if (Qfield.version && Qfield.version !== '1.0.0' && Qfield.version !== '0') {
-                links += ' <a href="https://github.com/opengisch/QField/releases/tag/' + Qfield.version + '">' + Qfield.version + '</a>';
+                links += ' <a href="' + Qfield.sourceUrl + '/releases/tag/' + Qfield.version + '">' + Qfield.version + '</a>';
               }
 
               let title = Qfield.name;
               if (Qfield.name === "QField") {
                 title += "<br>" + Qfield.versionString + " (" + links + ")";
+              } else if (Qfield.whiteLabel) {
+                // GPL notice: the one place the original project is named in a white-label build
+                title += "<br>" + Qfield.versionString + " (" + links + ")";
+                title += "<br><small>" + qsTr("Based on QField by OPENGIS.ch and contributors, free software under the GNU GPL v2 or later. %1Source code%2").arg('<a href="' + Qfield.sourceUrl + '">').arg('</a>') + "</small>";
               } else {
                 title += "<br>" + qsTr("Powered by QField") + " (" + links + ")";
               }
@@ -102,6 +106,7 @@ Item {
 
         ColumnLayout {
           id: opengisPart
+          visible: !Qfield.whiteLabel
           Layout.fillWidth: true
           Layout.fillHeight: true
 
@@ -181,6 +186,7 @@ Item {
     QfButton {
       id: linksButton
       dropdown: Qfield.name === "QField"
+      visible: !Qfield.whiteLabel
       Layout.fillWidth: true
       icon.source: QfTheme.getThemeVectorIcon('ic_book_white_24dp')
 
