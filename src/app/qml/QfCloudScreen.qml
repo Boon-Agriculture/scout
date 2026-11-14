@@ -473,7 +473,7 @@ Page {
                           break;
                         case QfCloudProject.Downloading:
                           if (PackagingStatus === QfCloudProject.PackagingBusyStatus) {
-                            status = qsTr('QFieldCloud is packaging the latest data just for you; this might take some time, please hold tight');
+                            status = qsTr('%1 is packaging the latest data just for you; this might take some time, please hold tight').arg(Qfield.cloudName);
                           } else {
                             if (PackagingStatus === QfCloudProject.PackagingFinishedStatus || DownloadProgress > 0.0) {
                               if (DownloadSize > 0) {
@@ -482,7 +482,7 @@ Page {
                                 status = qsTr('Downloading, %1% fetched').arg(Math.round(DownloadProgress * 100));
                               }
                             } else {
-                              status = qsTr('Reaching out to QFieldCloud to download project');
+                              status = qsTr('Reaching out to %1 to download project').arg(Qfield.cloudName);
                             }
                           }
                           break;
