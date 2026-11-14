@@ -18,6 +18,7 @@ set(QFIELD_GUI_QML_FILES
     QfCogoOperationSettings.qml
     QfCogoOperations.qml
     QfCollapsibleMessage.qml
+    QfDocumentScanner.qml
     QfComboBox.qml
     QfCompassDial.qml
     QfConfirmationToolbar.qml
