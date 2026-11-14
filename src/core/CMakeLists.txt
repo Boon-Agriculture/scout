@@ -8,6 +8,7 @@ set(QFIELD_CORE_SRCS
     utils/qfcoordinatereferencesystemutils.cpp
     utils/qfexpressioncontextutils.cpp
     utils/qffeatureutils.cpp
+    utils/qfdocumentscanutils.cpp
     utils/qffileutils.cpp
     utils/qfgeometryutils.cpp
     utils/qflayerutils.cpp
@@ -134,6 +135,7 @@ set(QFIELD_CORE_HDRS
     utils/qfcoordinatereferencesystemutils.h
     utils/qfexpressioncontextutils.h
     utils/qffeatureutils.h
+    utils/qfdocumentscanutils.h
     utils/qffileutils.h
     utils/qfgeometryutils.h
     utils/qflayerutils.h
