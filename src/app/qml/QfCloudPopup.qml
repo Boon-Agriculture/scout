@@ -57,7 +57,7 @@ Popup {
         case 2:
           return qsTr('Local changes');
         default:
-          return qsTr('QFieldCloud');
+          return Qfield.cloudName;
         }
       }
 
@@ -209,7 +209,7 @@ Popup {
             visible: cloudProjectsModel.currentProjectId != '' && cloudProjectsModel.currentProject && cloudProjectsModel.currentProjectId !== cloudProjectsModel.currentProject.id
             font: QfTheme.tipFont
             color: QfTheme.secondaryTextColor
-            text: qsTr('This QFieldCloud project was first downloaded with another cloud account. Please sign in with the original account for this project to use the QFieldCloud functionality.')
+            text: qsTr('This %1 project was first downloaded with another cloud account. Please sign in with the original account for this project to use the %1 functionality.').arg(Qfield.cloudName)
 
             wrapMode: Text.WordWrap
             horizontalAlignment: Text.AlignHCenter
@@ -246,7 +246,7 @@ Popup {
               switch (status) {
               case QfCloudProject.Downloading:
                 if (packagingStatus === QfCloudProject.PackagingBusyStatus) {
-                  return qsTr('QFieldCloud is packaging the latest data just for you; this might take some time, please hold tight');
+                  return qsTr('%1 is packaging the latest data just for you; this might take some time, please hold tight').arg(Qfield.cloudName);
                 } else {
                   if (packagingStatus === QfCloudProject.PackagingFinishedStatus || downloadProgress > 0.0) {
                     if (downloadBytesTotal > 0) {
@@ -255,7 +255,7 @@ Popup {
                       return qsTr('Downloading, %1% fetched').arg(Math.round(downloadProgress * 100));
                     }
                   } else {
-                    return qsTr('Reaching out to QFieldCloud to download project');
+                    return qsTr('Reaching out to %1 to download project').arg(Qfield.cloudName);
                   }
                 }
               case QfCloudProject.Pushing:
@@ -263,7 +263,7 @@ Popup {
                 case QfCloudProject.DeltaFileLocalStatus:
                   return qsTr('Pushing changes, %1%…').arg(Math.round(cloudProjectsModel.currentProject.pushDeltaProgress * 100));
                 default:
-                  return qsTr('QFieldCloud is applying the latest pushed changes. This might take some time, please hold tight…');
+                  return qsTr('%1 is applying the latest pushed changes. This might take some time, please hold tight…').arg(Qfield.cloudName);
                 }
               default:
                 '';
@@ -721,7 +721,7 @@ Popup {
                 iconSource: QfTheme.getThemeVectorIcon('ic_cloud_synchronize_24dp')
                 title: qsTr('Synchronize project')
                 indicatorVisible: cloudProjectsModel.currentProject && (cloudProjectsModel.currentProject.isOutdated || cloudProjectsModel.currentProject.isProjectOutdated)
-                description: qsTr('Uploads your edits, then downloads the latest project from QFieldCloud so everything is up to date.')
+                description: qsTr('Uploads your edits, then downloads the latest project from %1 so everything is up to date.').arg(Qfield.cloudName)
                 footnote: {
                   if (!cloudProjectsModel.currentProject) {
                     return '';
