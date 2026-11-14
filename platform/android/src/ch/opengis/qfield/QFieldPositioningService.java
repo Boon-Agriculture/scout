@@ -131,8 +131,8 @@ public class QFieldPositioningService extends QtService {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             notificationChannel = new NotificationChannel(
-                CHANNEL_ID, "QField", NotificationManager.IMPORTANCE_DEFAULT);
-            notificationChannel.setDescription("QField Positioning");
+                CHANNEL_ID, getString(R.string.app_name), NotificationManager.IMPORTANCE_DEFAULT);
+            notificationChannel.setDescription("Positioning");
             notificationChannel.setImportance(
                 NotificationManager.IMPORTANCE_LOW);
             notificationChannel.enableLights(false);
