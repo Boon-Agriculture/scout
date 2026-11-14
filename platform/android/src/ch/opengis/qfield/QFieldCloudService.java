@@ -119,9 +119,9 @@ public class QFieldCloudService extends QtService {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             notificationChannel =
-                new NotificationChannel(CHANNEL_ID, "QFieldCloud",
+                new NotificationChannel(CHANNEL_ID, getString(R.string.app_name),
                                         NotificationManager.IMPORTANCE_DEFAULT);
-            notificationChannel.setDescription("QFieldCloud service");
+            notificationChannel.setDescription("Cloud sync");
             notificationChannel.setImportance(
                 NotificationManager.IMPORTANCE_LOW);
             notificationChannel.enableLights(false);
@@ -134,7 +134,7 @@ public class QFieldCloudService extends QtService {
                 .setSmallIcon(R.drawable.qfield_logo_vector)
                 .setWhen(System.currentTimeMillis())
                 .setOngoing(true)
-                .setContentTitle("QFieldCloud")
+                .setContentTitle(getString(R.string.app_name))
                 .setContentText(getString(R.string.upload_pending_attachments));
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -181,7 +181,7 @@ public class QFieldCloudService extends QtService {
                 .setSmallIcon(R.drawable.qfield_logo_vector)
                 .setWhen(System.currentTimeMillis())
                 .setOngoing(true)
-                .setContentTitle("QFieldCloud")
+                .setContentTitle(getString(R.string.app_name))
                 .setContentText(contentText)
                 .setProgress(100, progress, false)
                 .setContentIntent(contentIntent);
