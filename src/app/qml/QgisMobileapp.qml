@@ -5514,11 +5514,11 @@ ApplicationWindow {
     onPushFinished: (projectId, isDownloadingProject, hasError, errorString) => {
       if (hasError) {
         qfieldCloudStatus.refresh();
-        displayToast(qsTr("Changes failed to reach QFieldCloud: %1").arg(errorString), 'error');
+        displayToast(qsTr("Changes failed to reach %1: %2").arg(Qfield.cloudName).arg(errorString), 'error');
         return;
       }
       if (!isDownloadingProject && (qfieldCloudScreen.visible || qfieldCloudPopup.visible || welcomeScreen.visible)) {
-        displayToast(qsTr("Changes successfully pushed to QFieldCloud"));
+        displayToast(qsTr("Changes successfully pushed to %1").arg(Qfield.cloudName));
       }
       if (QfCloudUtils.hasPendingAttachments(cloudConnection.username)) {
         // Go ahead and upload pending attachments in the background
@@ -6057,14 +6057,14 @@ ApplicationWindow {
       },
       {
         "type": "information",
-        "title": qsTr("QFieldCloud"),
-        "description": qsTr("Upload local changes, synchronize or discard changes to and from QFieldCloud when a cloud project is opened."),
+        "title": Qfield.cloudName,
+        "description": qsTr("Upload local changes, synchronize or discard changes to and from %1 when a cloud project is opened.").arg(Qfield.cloudName),
         "target": () => [iface.findItemByObjectName('cloudButton')]
       },
       {
         "type": "information",
         "title": qsTr("Project folder"),
-        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to QFieldCloud, and sharing datasets, attachments, and layouts."),
+        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to %1, and sharing datasets, attachments, and layouts.").arg(Qfield.cloudName),
         "target": () => [iface.findItemByObjectName('projectFolderButton')]
       }
     ]
@@ -6081,7 +6081,7 @@ ApplicationWindow {
       {
         "type": "information",
         "title": qsTr("Local changes"),
-        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to QFieldCloud."),
+        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to %1.").arg(Qfield.cloudName),
         "target": () => [iface.findItemByObjectName('cloudButton')]
       }
     ]
@@ -6096,7 +6096,7 @@ ApplicationWindow {
       {
         "type": "information",
         "title": qsTr("Local changes"),
-        "description": qsTr("This cloud project has pending changes which have not been uploaded yet. Open the dashboard using this button, then tap the blue cloud icon to send them to QFieldCloud."),
+        "description": qsTr("This cloud project has pending changes which have not been uploaded yet. Open the dashboard using this button, then tap the blue cloud icon to send them to %1.").arg(Qfield.cloudName),
         "target": () => [menuButton]
       }
     ]
