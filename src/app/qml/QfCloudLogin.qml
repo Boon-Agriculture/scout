@@ -319,7 +319,7 @@ Item {
       id: cloudIntroLabel
       Layout.fillWidth: true
       Layout.topMargin: 10
-      text: qsTr('The easiest way to collaborate and manage your projects across devices!') + (Qt.platform.os !== "ios" ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
+      text: qsTr('The easiest way to collaborate and manage your projects across devices!') + (Qt.platform.os !== "ios" && !Qfield.whiteLabel ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
       horizontalAlignment: Text.AlignHCenter
       font: QfTheme.tipFont
       color: QfTheme.secondaryTextColor
