@@ -54,6 +54,15 @@ jobs:
       - name: Check the Gradle build helper against Gradle's official list
         uses: gradle/actions/wrapper-validation@v4
 
+      - name: Apply the brand's names to Android's own texts
+        # Android's notification and system texts (36 languages) name QField; swap in the brand's names.
+        run: |
+          set -a; source "branding/${BRAND}/brand.env"; set +a
+          for f in platform/android/res/values*/strings.xml; do
+            sed -i -e "s|QFieldCloud|${APP_CLOUD_NAME}|g" -e "s|QField|${APP_NAME}|g" "$f"
+          done
+          grep -c "${APP_NAME}" platform/android/res/values/strings.xml
+
       - name: Reclaim disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
@@ -119,6 +128,9 @@ jobs:
                 -D APP_NAME="${APP_NAME}" \
                 -D APP_ID="${APP_ID}" \
                 -D APP_CLOUD_URL="${APP_CLOUD_URL}" \
+                -D APP_CLOUD_NAME="${APP_CLOUD_NAME}" \
+                -D APP_WEBSITE="${APP_WEBSITE}" \
+                -D APP_SOURCE_URL="${APP_SOURCE_URL}" \
                 -D APP_ICON_PATH="${{ github.workspace }}/branding/${BRAND}/icon" \
                 -D APP_THEME_PATH="${{ github.workspace }}/branding/${BRAND}/theme.json" \
                 -D NUGET_USERNAME=opengisch \
