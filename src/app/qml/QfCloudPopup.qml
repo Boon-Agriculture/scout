@@ -445,7 +445,7 @@ Popup {
               accentColor: QfTheme.cloudColor
               iconSource: QfTheme.getThemeVectorIcon('ic_cloud_active_24dp')
               title: qsTr('Cloudify project')
-              description: localProjectGrid.isCloudifying ? qsTr('Uploading the current project to QFieldCloud.') : qsTr('The current project is not stored on QFieldCloud. Storing projects on QFieldCloud offers seamless synchronization, offline editing, and team management.') + (Qt.platform.os !== "ios" ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
+              description: localProjectGrid.isCloudifying ? qsTr('Uploading the current project to %1.').arg(Qfield.cloudName) : qsTr('The current project is not stored on %1. Storing projects on %1 offers seamless synchronization, offline editing, and team management.').arg(Qfield.cloudName) + (Qt.platform.os !== "ios" && !Qfield.whiteLabel ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
 
               QfCollapsibleMessage {
                 id: cloudifyError
