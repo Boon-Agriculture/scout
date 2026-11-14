@@ -138,7 +138,7 @@ QfRelationEditorBase {
       if (pendingDownloadsIdx >= 0) {
         if (errorString !== "") {
           relationEditor.failedDownloads.push(fileName);
-          displayToast(qsTr("QFieldCloud on-demand attachment error: ") + errorString, 'error');
+          displayToast(qsTr("%1 on-demand attachment error: ").arg(Qfield.cloudName) + errorString, 'error');
         }
         let pds = Array.from(relationEditor.pendingDownloads);
         pds.splice(pendingDownloadsIdx, 1);
