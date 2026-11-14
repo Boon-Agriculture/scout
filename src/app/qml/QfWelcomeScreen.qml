@@ -271,7 +271,7 @@ Page {
             icon.source: QfTheme.getThemeVectorIcon('ic_create_white_24dp')
 
             onClicked: {
-              Qt.openUrlExternally("https://www.qfield.org/");
+              Qt.openUrlExternally(Qfield.websiteUrl);
               feedbackView.collapse();
             }
           }
@@ -450,7 +450,7 @@ Page {
               width: welcomeActionsContainer.itemWidth
               iconSource: QfTheme.getThemeVectorIcon("ic_cloud_active_24dp")
               iconColor: QfTheme.cloudColor
-              label: qsTr("QFieldCloud\nprojects")
+              label: Qfield.whiteLabel ? qsTr("Cloud\nprojects") : qsTr("QFieldCloud\nprojects")
               onClicked: showQFieldCloudScreen()
             }
 
