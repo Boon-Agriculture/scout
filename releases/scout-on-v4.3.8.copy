@@ -1,0 +1,11 @@
+images/themes/qfield/nodpi/ic_scan_document_black_24dp.svg
+platform/android/src/ch/opengis/qfield/QFieldActivity.java
+platform/android/src/ch/opengis/qfield/QFieldCloudService.java
+platform/android/src/ch/opengis/qfield/QFieldPositioningService.java
+src/app/qml/QfAbout.qml
+src/app/qml/QfCloudPackageLayersFeedback.qml
+src/core/qfieldcloud/qfcloudstatus.cpp
+src/core/utils/qfdocumentscanutils.cpp
+src/core/utils/qfdocumentscanutils.h
+src/gui/qml/QfDocumentScanner.qml
+src/gui/qml/QfProjectCreationScreen.qml
