@@ -75,6 +75,12 @@ QfEditorWidgetBase {
 
   property bool isImage: false
   property bool isAudio: false
+
+  // Scout document scanning: a layer's custom property "scout/capture_mode/<field name>"
+  // set to "scan" makes scanning the field's default; photo stays one tap away.
+  readonly property string captureMode: currentLayer && field ? QfDocumentScanUtils.captureMode(currentLayer, field.name) : "photo"
+  property bool scanCapture: false
+  property string scanBasePath: ""
   property bool isVideo: false
 
   //to not break any binding of image.source
@@ -226,7 +232,7 @@ QfEditorWidgetBase {
     visible: isVisible
 
     anchors.left: parent.left
-    anchors.right: cameraButton.left
+    anchors.right: scanButton.left
     color: {
       if ((!isEditable && isEditing) || isNull || isEmpty) {
         return QfTheme.mainTextDisabledColor;
@@ -280,7 +286,7 @@ QfEditorWidgetBase {
 
   Rectangle {
     id: mediaFrame
-    width: parent.width - fileButton.width - cameraButton.width - cameraVideoButton.width - microphoneButton.width - (isEnabled ? 5 : 0)
+    width: parent.width - fileButton.width - scanButton.width - cameraButton.width - cameraVideoButton.width - microphoneButton.width - (isEnabled ? 5 : 0)
     height: 48
     visible: !linkField.isVisible
     color: QfTheme.controlBorderColor
@@ -589,6 +595,23 @@ QfEditorWidgetBase {
   }
 
   QfToolButton {
+    id: scanButton
+    width: visible ? QfTheme.toolButtonSize : 0
+    height: QfTheme.toolButtonSize
+
+    visible: documentViewer == QfEditorWidgetExternalResource.DocumentImage && isEnabled
+
+    anchors.right: cameraButton.left
+    anchors.top: parent.top
+
+    iconSource: QfTheme.getThemeVectorIcon("ic_scan_document_black_24dp")
+    iconColor: captureMode === "scan" ? QfTheme.mainColor : QfTheme.mainTextColor
+    bgcolor: "transparent"
+
+    onClicked: captureScan()
+  }
+
+  QfToolButton {
     id: cameraButton
     width: visible ? QfTheme.toolButtonSize : 0
     height: QfTheme.toolButtonSize
@@ -718,6 +741,11 @@ QfEditorWidgetBase {
       }
 
       onFinished: path => {
+        if (scanCapture) {
+          close();
+          receiveScanPhoto(path);
+          return;
+        }
         const filepath = QfStringUtils.replaceFilenameTags(getResourceFilePath(), path);
         platformUtilities.renameFileWithSidecars(path, prefixToRelativePath + filepath);
         if (!QfFileUtils.mimeTypeName(path).startsWith("video/")) {
@@ -730,7 +758,12 @@ QfEditorWidgetBase {
         close();
       }
 
-      onCanceled: close()
+      onCanceled: {
+        close();
+        if (scanCapture && !documentScanner.opened) {
+          scanCapture = false;
+        }
+      }
       onClosed: cameraLoader.active = false
     }
   }
@@ -738,6 +771,15 @@ QfEditorWidgetBase {
   Connections {
     target: __resourceSource
     function onResourceReceived(path) {
+      if (path && scanCapture) {
+        // Scans keep full resolution: the page is read later, so no size limit here
+        receiveScanPhoto(prefixToRelativePath + path);
+        return;
+      }
+      if (!path && scanCapture && !documentScanner.opened) {
+        scanCapture = false;
+        return;
+      }
       if (path) {
         const maximumWidhtHeight = iface.readProjectNumEntry("qfieldsync", "maximumImageWidthHeight", 0);
         if (maximumWidhtHeight > 0) {
@@ -810,6 +852,48 @@ QfEditorWidgetBase {
     } else {
       __resourceSource = platformUtilities.getGalleryPicture(qgisProject.homePath + '/', filepath, this);
     }
+  }
+
+  QfDocumentScanner {
+    id: documentScanner
+
+    onPhotoRequested: retake => takeScanPhoto()
+
+    onFinished: path => {
+      scanCapture = false;
+      valueChangeRequested(path.substring(prefixToRelativePath.length), false);
+    }
+
+    onCanceled: {
+      scanCapture = false;
+    }
+  }
+
+  function captureScan() {
+    Qt.inputMethod.hide();
+    let filepath = getResourceFilePath();
+    filepath = filepath.replace('{extension}', 'JPG');
+    // The scan is saved next to where the photo would go, under the same name with "_scan"
+    scanBasePath = prefixToRelativePath + filepath.replace(/\.[^./]*$/, '') + '_scan';
+    documentScanner.outputBasePath = scanBasePath;
+    scanCapture = true;
+    takeScanPhoto();
+  }
+
+  function takeScanPhoto() {
+    const stamp = new Date().toISOString().replace(/[^0-9]/g, '').substring(0, 17);
+    if (platformUtilities.capabilities & QfPlatformUtilities.NativeCamera && settings.valueBool("nativeCamera2", true)) {
+      const photoPath = scanBasePath.substring(prefixToRelativePath.length) + '_photo' + stamp + '.JPG';
+      __resourceSource = platformUtilities.getCameraPicture(qgisProject.homePath + '/', photoPath, 'JPG', this);
+    } else {
+      platformUtilities.createDir(qgisProject.homePath, 'DCIM');
+      cameraLoader.isVideo = false;
+      cameraLoader.active = true;
+    }
+  }
+
+  function receiveScanPhoto(fullPath) {
+    documentScanner.addPhoto(fullPath);
   }
 
   function capturePhoto() {
