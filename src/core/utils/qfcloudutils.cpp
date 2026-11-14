@@ -16,6 +16,7 @@
 #include "qfcloudconnection.h"
 #include "qfcloudutils.h"
 #include "qffileutils.h"
+#include "qfield.h"
 #include "qfplatformutilities.h"
 #include "qfprojectutils.h"
 #include "qfstringutils.h"
@@ -123,7 +124,7 @@ QString QfCloudUtils::userFriendlyErrorString( const QString &errorString )
 
 QString QfCloudUtils::documentationFromErrorString( const QString &errorString )
 {
-  if ( errorString.contains( errorCodeOverQuota() ) )
+  if ( errorString.contains( errorCodeOverQuota() ) && !Qfield::isWhiteLabel() )
   {
     return QStringLiteral( "https://docs.qfield.org/get-started/storage-qfc/#adding-qfieldcloud-storage" );
   }
@@ -509,8 +510,9 @@ const QList<QfCloudAttachmentHistoryEntry> QfCloudUtils::getAttachmentsHistory( 
 
 QString QfCloudUtils::subscriptionManagementUrl( const QString &serverUrl, const QString &plan, const QString &projectOwner, const QString &username )
 {
-  if ( serverUrl != QfCloudConnection::defaultUrl() )
+  if ( serverUrl != QStringLiteral( "https://app.qfield.cloud" ) )
   {
+    // Plans and billing pages only exist on QField's own cloud
     return QString();
   }
 
