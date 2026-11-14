@@ -159,7 +159,7 @@ bool QfCloudConnection::isReachable() const
 
 QMap<QString, QString> QfCloudConnection::sErrors = QMap<QString, QString>(
   {
-    { "unknown_error", QObject::tr( "QFieldCloud Unknown Error" ) },
+    { "unknown_error", QObject::tr( "Unknown cloud error" ) },
     { "status_not_ok", QObject::tr( "Status not ok" ) },
     { "empty_content", QObject::tr( "Empty content" ) },
     { "object_not_found", QObject::tr( "Object not found" ) },
@@ -638,7 +638,7 @@ void QfCloudConnection::registerAccount( const QString &email, const QString &us
       } );
       connect( this, &QfCloudConnection::loginFailed, registrationContext, [this, registrationContext]( const QString &reason ) {
         QVariantMap errors;
-        errors.insert( QString(), tr( "%1\nIf this email already has an account, check your inbox for a message from QFieldCloud." ).arg( reason ) );
+        errors.insert( QString(), tr( "%1\nIf this email already has an account, check your inbox for a message from %2." ).arg( reason, Qfield::appCloudName ) );
         emit registrationFinished( errors );
         registrationContext->deleteLater();
       } );
