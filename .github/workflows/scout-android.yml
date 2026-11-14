@@ -11,6 +11,14 @@ on:
         description: 'Brand folder under branding/ (scout, or later a customer brand)'
         required: true
         default: 'scout'
+      base:
+        description: 'QField code to build on: a stable release (recommended) or dev (newest, untested)'
+        required: true
+        type: choice
+        default: 'v4.3.8'
+        options:
+          - 'v4.3.8'
+          - 'dev'
 
 permissions:
   contents: read
@@ -27,12 +35,31 @@ jobs:
     env:
       TRIPLET: arm64-android
       BRAND: ${{ inputs.brand }}
+      BASE: ${{ inputs.base }}
       ALL_FILES_ACCESS: 'OFF'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Switch to the QField stable release and apply Boon's changes
+        # dev = this repository as it is. A release = QField's own release code plus our changes:
+        # whole files listed in releases/scout-on-<release>.copy (taken from this repository)
+        # and edits in releases/scout-on-<release>.patch (branding, name clean-up, scanner).
+        if: env.BASE != 'dev'
+        run: |
+          mkdir -p /tmp/boon
+          cp "releases/scout-on-${BASE}.patch" "releases/scout-on-${BASE}.copy" /tmp/boon/
+          cp -r branding /tmp/boon/branding
+          tar -cf /tmp/boon/files.tar $(cat "/tmp/boon/scout-on-${BASE}.copy")
+          git fetch --no-tags --depth 1 https://github.com/opengisch/QField "refs/tags/${BASE}"
+          git checkout -f FETCH_HEAD
+          git submodule update --init --recursive
+          tar -xf /tmp/boon/files.tar
+          git apply --whitespace=nowarn "/tmp/boon/scout-on-${BASE}.patch"
+          rm -rf branding && cp -r /tmp/boon/branding branding
+          echo "Building on QField ${BASE} ($(git rev-parse --short HEAD)) with Boon's changes"
 
       - name: Install Gradle 8.11.1 (official, checked by Gradle's own action)
         uses: gradle/actions/setup-gradle@v4
