@@ -28,10 +28,18 @@ index b8ec42e4a..2aab2115e 100644
          <file>themes/qfield/nodpi/ic_file_green_48dp.svg</file>
          <file>themes/qfield/nodpi/ic_file_param_48dp.svg</file>
 diff --git a/platform/android/AndroidManifest.xml.in b/platform/android/AndroidManifest.xml.in
-index eeb293c56..d83c9e2c7 100644
+index eeb293c56..6f7728e63 100644
 --- a/platform/android/AndroidManifest.xml.in
 +++ b/platform/android/AndroidManifest.xml.in
-@@ -307,5 +307,5 @@
+@@ -53,4 +53,7 @@
+     android:networkSecurityConfig="@xml/network_security_config"
+     android:requestLegacyExternalStorage="true"
++    android:allowBackup="false"
++    android:fullBackupContent="false"
++    android:dataExtractionRules="@xml/data_extraction_rules"
+     android:enableOnBackInvokedCallback="false">
+     <activity
+@@ -307,5 +310,5 @@
      <provider
          android:name="androidx.core.content.FileProvider"
 -        android:authorities="ch.opengis.@APP_PACKAGE_NAME@.fileprovider"
@@ -48,6 +56,31 @@ index 55cfb94f3..6bacaaa73 100644
 +      applicationId = '@APP_ID@'
        minSdkVersion = @ANDROID_PLATFORM_INT@
        targetSdkVersion = @ANDROID_TARGET_PLATFORM@
+diff --git a/platform/android/res/xml/data_extraction_rules.xml b/platform/android/res/xml/data_extraction_rules.xml
+new file mode 100644
+index 000000000..f2c845689
+--- /dev/null
++++ b/platform/android/res/xml/data_extraction_rules.xml
+@@ -0,0 +1,19 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Field data never leaves the phone through Android backups or phone-to-phone transfer;
++     it only travels through the app's own cloud sync. -->
++<data-extraction-rules>
++  <cloud-backup>
++    <exclude domain="root" />
++    <exclude domain="file" />
++    <exclude domain="database" />
++    <exclude domain="sharedpref" />
++    <exclude domain="external" />
++  </cloud-backup>
++  <device-transfer>
++    <exclude domain="root" />
++    <exclude domain="file" />
++    <exclude domain="database" />
++    <exclude domain="sharedpref" />
++    <exclude domain="external" />
++  </device-transfer>
++</data-extraction-rules>
 diff --git a/src/app/qgismobileapp.cpp b/src/app/qgismobileapp.cpp
 index d36957642..a93024bc1 100644
 --- a/src/app/qgismobileapp.cpp
@@ -314,31 +347,105 @@ index 7773d1821..ac45faa4f 100644
          } else {
            projectDetails.cloudProject = cloudProjectsModel.findProject(projectId);
 diff --git a/src/app/qml/QfLocalDataPickerScreen.qml b/src/app/qml/QfLocalDataPickerScreen.qml
-index 5662dd5fc..efbf21602 100644
+index 5662dd5fc..7eafc39f4 100644
 --- a/src/app/qml/QfLocalDataPickerScreen.qml
 +++ b/src/app/qml/QfLocalDataPickerScreen.qml
-@@ -549,5 +549,5 @@ Page {
+@@ -35,5 +35,5 @@ Page {
+     showApplyButton: false
+     showCancelButton: false
+-    showMenuButton: localFilesModel.inSelectionMode && (table.selectedItemsPushableToQField || table.selectedItemsWebDavConfigured || table.selectedItemsDeletable || table.selectedItemsCompressible)
++    showMenuButton: !Qfield.whiteLabel && localFilesModel.inSelectionMode && (table.selectedItemsPushableToQField || table.selectedItemsWebDavConfigured || table.selectedItemsDeletable || table.selectedItemsCompressible)
+     backAsCancel: localFilesModel.inSelectionMode
+ 
+@@ -57,4 +57,10 @@ Page {
+   }
+ 
++  // Branded builds keep field data inside the app: only photos and printed maps (PDF)
++  // can be opened in other apps, sent or exported. Datasets, projects and folders cannot.
++  function brandAllowsSharing(path) {
++    return !Qfield.whiteLabel || /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(path);
++  }
++
+   ColumnLayout {
+     id: files
+@@ -467,5 +473,5 @@ Page {
+         property bool isCloudProject: isProject && QfCloudUtils.getProjectId(qgisProject.fileName) !== ''
+         property bool isProjectActionAvailable: updateProjectFromArchive.enabled || uploadProjectToWebdav.enabled || compressProjectAndSendTo.enabled
+-        visible: (projectFolderView && isProject && isProjectActionAvailable && table.model.currentDepth === 1) || table.model.currentPath === 'root'
++        visible: !Qfield.whiteLabel && ((projectFolderView && isProject && isProjectActionAvailable && table.model.currentDepth === 1) || table.model.currentPath === 'root')
+ 
+         anchors.bottom: parent.bottom
+@@ -508,5 +514,5 @@ Page {
+         id: viewFile
+ 
+-        enabled: itemMenu.itemMetaType !== QfLocalFilesModel.Folder
++        enabled: itemMenu.itemMetaType !== QfLocalFilesModel.Folder && qfieldLocalDataPickerScreen.brandAllowsSharing(itemMenu.itemPath)
+         visible: enabled
+ 
+@@ -525,5 +531,5 @@ Page {
+       MenuItem {
+         id: sendDatasetTo
+-        enabled: itemMenu.itemMetaType === QfLocalFilesModel.File || (platformUtilities.capabilities & QfPlatformUtilities.CustomSend && itemMenu.itemMetaType === QfLocalFilesModel.Dataset)
++        enabled: (itemMenu.itemMetaType === QfLocalFilesModel.File || (platformUtilities.capabilities & QfPlatformUtilities.CustomSend && itemMenu.itemMetaType === QfLocalFilesModel.Dataset)) && qfieldLocalDataPickerScreen.brandAllowsSharing(itemMenu.itemPath)
+         visible: enabled
+ 
+@@ -549,5 +555,5 @@ Page {
          leftPadding: QfTheme.menuItemLeftPadding
  
 -        text: qsTr("Push to QFieldCloud")
 +        text: qsTr("Push to %1").arg(Qfield.cloudName)
          onTriggered: {
            pushFilesToQFieldCloudConnection.enabled = true;
-@@ -958,5 +958,5 @@ Page {
+@@ -559,5 +565,5 @@ Page {
+       MenuItem {
+         id: exportDatasetTo
+-        enabled: platformUtilities.capabilities & QfPlatformUtilities.CustomExport && itemMenu.itemMetaType === QfLocalFilesModel.Dataset
++        enabled: platformUtilities.capabilities & QfPlatformUtilities.CustomExport && itemMenu.itemMetaType === QfLocalFilesModel.Dataset && qfieldLocalDataPickerScreen.brandAllowsSharing(itemMenu.itemPath)
+         visible: enabled
+ 
+@@ -603,5 +609,5 @@ Page {
+       MenuItem {
+         id: exportFolderTo
+-        enabled: platformUtilities.capabilities & QfPlatformUtilities.CustomExport && itemMenu.itemMetaType === QfLocalFilesModel.Folder
++        enabled: !Qfield.whiteLabel && platformUtilities.capabilities & QfPlatformUtilities.CustomExport && itemMenu.itemMetaType === QfLocalFilesModel.Folder
+         visible: enabled
+ 
+@@ -619,5 +625,5 @@ Page {
+       MenuItem {
+         id: sendCompressedFolderTo
+-        enabled: platformUtilities.capabilities & QfPlatformUtilities.CustomSend && itemMenu.itemMetaType === QfLocalFilesModel.Folder
++        enabled: !Qfield.whiteLabel && platformUtilities.capabilities & QfPlatformUtilities.CustomSend && itemMenu.itemMetaType === QfLocalFilesModel.Folder
+         visible: enabled
+ 
+@@ -642,5 +648,5 @@ Page {
+       MenuItem {
+         id: uploadFolderToWebdav
+-        enabled: itemMenu.itemHasWebdavConfiguration
++        enabled: !Qfield.whiteLabel && itemMenu.itemHasWebdavConfiguration
+         visible: enabled
+ 
+@@ -660,5 +666,5 @@ Page {
+       MenuItem {
+         id: downloadFolderFromWebdav
+-        enabled: itemMenu.itemHasWebdavConfiguration && itemMenu.itemMetaType === QfLocalFilesModel.Folder
++        enabled: !Qfield.whiteLabel && itemMenu.itemHasWebdavConfiguration && itemMenu.itemMetaType === QfLocalFilesModel.Folder
+         visible: enabled
+ 
+@@ -958,5 +964,5 @@ Page {
          leftPadding: QfTheme.menuItemLeftPadding
  
 -        text: qsTr("Push file(s) to QFieldCloud")
 +        text: qsTr("Push file(s) to %1").arg(Qfield.cloudName)
          onTriggered: {
            var fileNames = [];
-@@ -972,5 +972,5 @@ Page {
+@@ -972,5 +978,5 @@ Page {
              QfCloudUtils.addPendingAttachments(cloudConnection.userInformation.username, QfCloudUtils.getProjectId(table.model.currentPath), fileNames, cloudConnection, true);
            } else {
 -            displayToast(qsTr("Please select one or more files to push to QFieldCloud."));
 +            displayToast(qsTr("Please select one or more files to push to %1.").arg(Qfield.cloudName));
            }
          }
-@@ -1038,9 +1038,9 @@ Page {
+@@ -1038,9 +1044,9 @@ Page {
        platformUtilities.uploadPendingAttachments(cloudConnection);
        if (pushFilesToQFieldCloudConnection.sendingMultiple) {
 -        displayToast(qsTr("‘%1’ is being uploaded to QFieldCloud").arg(QfFileUtils.fileName(itemMenu.itemPath)));
