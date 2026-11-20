@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 3b1185da2..e2d9c6646 100644
+index 3b1185da2..5b5eedab4 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -16,4 +16,12 @@ set(APP_VERSION "0" CACHE STRING "Application Version (Example: v1.0.0)")
+@@ -16,4 +16,14 @@ set(APP_VERSION "0" CACHE STRING "Application Version (Example: v1.0.0)")
  set(APP_VERSION_STR "local - dev" CACHE STRING "Application Version Name (Example: 1.0.0 - Homerun)")
  set(APP_PACKAGE_NAME "qfield" CACHE STRING "Package name suffix. E.g. qfield --> ch.opengis.qfield")
 +set(APP_ID "" CACHE STRING "Android application id shown to the stores (e.g. com.boonagric.scout). Empty = ch.opengis.${APP_PACKAGE_NAME}")
@@ -10,6 +10,8 @@ index 3b1185da2..e2d9c6646 100644
 +set(APP_CLOUD_NAME "QFieldCloud" CACHE STRING "Name of the cloud service shown to users")
 +set(APP_WEBSITE "https://qfield.org" CACHE STRING "Website of the brand")
 +set(APP_SOURCE_URL "https://github.com/opengisch/QField" CACHE STRING "Where this build's source code is published (GPL)")
++set(APP_PUBLISHER "" CACHE STRING "Company behind the brand, printed on map prints (empty for QField)")
++set(APP_FONT_FAMILY "" CACHE STRING "Font family used across the app (the font must be bundled under :/fonts/; empty keeps the system font)")
 +if(NOT APP_ID)
 +  set(APP_ID "ch.opengis.${APP_PACKAGE_NAME}")
 +endif()
@@ -47,16 +49,145 @@ index 55cfb94f3..6bacaaa73 100644
        minSdkVersion = @ANDROID_PLATFORM_INT@
        targetSdkVersion = @ANDROID_TARGET_PLATFORM@
 diff --git a/src/app/qgismobileapp.cpp b/src/app/qgismobileapp.cpp
-index d36957642..f299ae974 100644
+index d36957642..a93024bc1 100644
 --- a/src/app/qgismobileapp.cpp
 +++ b/src/app/qgismobileapp.cpp
-@@ -1088,5 +1088,5 @@ bool QgisMobileapp::print( const QString &layoutName )
+@@ -94,4 +94,5 @@
+ #include <QFileInfo>
+ #include <QFontDatabase>
++#include <QGuiApplication>
+ #include <QPalette>
+ #include <QPermissions>
+@@ -121,4 +122,5 @@
+ #include <qgslayoutitemlabel.h>
+ #include <qgslayoutitemmap.h>
++#include <qgslayoutitempage.h>
+ #include <qgslayoutmanager.h>
+ #include <qgslayoutpagecollection.h>
+@@ -131,4 +133,5 @@
+ #include <qgsofflineediting.h>
+ #include <qgsprintlayout.h>
++#include <qgstextformat.h>
+ #include <qgsproject.h>
+ #include <qgsprojectelevationproperties.h>
+@@ -239,4 +242,12 @@ QgisMobileapp::QgisMobileapp( QgsApplication *app, QObject *parent )
+   }
+ 
++  // A branded build can bring its own font for the whole app
++  if ( !Qfield::appFontFamily.isEmpty() && QFontDatabase::families().contains( Qfield::appFontFamily ) )
++  {
++    QFont appFont = QGuiApplication::font();
++    appFont.setFamily( Qfield::appFontFamily );
++    QGuiApplication::setFont( appFont );
++  }
++
+   QgsFontManager::settingsDownloadMissingFonts->setValue( true );
+   QgsApplication::fontManager()->enableFontDownloadsForSession();
+@@ -1059,4 +1070,75 @@ bool QgisMobileapp::readProjectBoolEntry( const QString &scope, const QString &k
+ }
+ 
++namespace
++{
++  /**
++   * Branded builds print a line along the foot of the first page: brand, print time and
++   * the corners of the printed map area in WGS84. Returns the temporary label (removed after export).
++   */
++  QgsLayoutItemLabel *addBrandPrintStamp( QgsPrintLayout *layout, QString &temporaryMapId )
++  {
++    temporaryMapId.clear();
++    if ( !Qfield::isWhiteLabel() || !layout || layout->pageCollection()->pageCount() == 0 )
++      return nullptr;
++
++    QStringList parts;
++    parts << ( Qfield::appPublisher.isEmpty() ? Qfield::appName : QStringLiteral( "%1 by %2" ).arg( Qfield::appName, Qfield::appPublisher ) );
++    parts << QObject::tr( "Printed %1" ).arg( QStringLiteral( "[%format_date(now(), 'yyyy-MM-dd HH:mm')%]" ) );
++
++    QgsLayoutItemMap *map = layout->referenceMap();
++    if ( map )
++    {
++      if ( map->id().isEmpty() )
++      {
++        temporaryMapId = QStringLiteral( "brand_print_stamp_map" );
++        map->setId( temporaryMapId );
++      }
++      const QString vars = QStringLiteral( "item_variables('%1')" ).arg( map->id().replace( '\'', QStringLiteral( "''" ) ) );
++      const QString extent = QStringLiteral( "transform(map_get(%1, 'map_extent'), map_get(%1, 'map_crs'), 'EPSG:4326')" ).arg( vars );
++      parts << QObject::tr( "Map area (WGS84) SW %1, %2 NE %3, %4" )
++                 .arg( QStringLiteral( "[%round(y_min(" ) + extent + QStringLiteral( "), 5)%]" ),
++                       QStringLiteral( "[%round(x_min(" ) + extent + QStringLiteral( "), 5)%]" ),
++                       QStringLiteral( "[%round(y_max(" ) + extent + QStringLiteral( "), 5)%]" ),
++                       QStringLiteral( "[%round(x_max(" ) + extent + QStringLiteral( "), 5)%]" ) );
++    }
++
++    QgsLayoutItemPage *page = layout->pageCollection()->page( 0 );
++    const QRectF pageRect( page->pos(), page->rect().size() );
++    const double margin = std::min( 5.0, pageRect.width() * 0.02 );
++    const double height = 6.0;
++
++    QgsLayoutItemLabel *label = new QgsLayoutItemLabel( layout );
++    label->setText( parts.join( QStringLiteral( "  |  " ) ) );
++    QgsTextFormat format;
++    QFont font = QGuiApplication::font();
++    font.setPointSizeF( 7 );
++    format.setFont( font );
++    format.setSize( 7 );
++    format.setColor( QColor( 30, 39, 66 ) );
++    label->setTextFormat( format );
++    label->setMarginX( 1.5 );
++    label->setMarginY( 0.5 );
++    label->setVAlign( Qt::AlignVCenter );
++    label->setBackgroundEnabled( true );
++    label->setBackgroundColor( QColor( 255, 255, 255, 220 ) );
++    label->setFrameEnabled( false );
++    layout->addLayoutItem( label );
++    label->attemptSetSceneRect( QRectF( pageRect.left() + margin, pageRect.bottom() - margin - height, pageRect.width() - 2 * margin, height ) );
++    label->setZValue( 100000 );
++    label->refresh();
++    return label;
++  }
++
++  void removeBrandPrintStamp( QgsPrintLayout *layout, QgsLayoutItemLabel *label, const QString &temporaryMapId )
++  {
++    if ( !layout )
++      return;
++    if ( label )
++      layout->removeLayoutItem( label );
++    if ( !temporaryMapId.isEmpty() && layout->referenceMap() && layout->referenceMap()->id() == temporaryMapId )
++      layout->referenceMap()->setId( QString() );
++  }
++} // namespace
++
+ bool QgisMobileapp::print( const QString &layoutName )
+ {
+@@ -1088,5 +1170,5 @@ bool QgisMobileapp::print( const QString &layoutName )
        {
          QgsLayoutItemLabel *labelItem = qobject_cast<QgsLayoutItemLabel *>( item );
 -        labelItem->setText( tr( "Map printed on %1 using QField" ).arg( "[%format_date(now(), 'yyyy-MM-dd @ hh:mm')%]" ) );
 +        labelItem->setText( tr( "Map printed on %1 using %2" ).arg( "[%format_date(now(), 'yyyy-MM-dd @ hh:mm')%]", Qfield::appName ) );
        }
      }
+@@ -1122,4 +1204,6 @@ bool QgisMobileapp::print( const QString &layoutName )
+     QString openPath;
+     bool success = false;
++    QString stampMapId;
++    QgsLayoutItemLabel *stamp = addBrandPrintStamp( layoutToPrint, stampMapId );
+     if ( !layoutToPrint->atlas() || !layoutToPrint->atlas()->enabled() )
+     {
+@@ -1159,4 +1243,5 @@ bool QgisMobileapp::print( const QString &layoutName )
+       }
+     }
++    removeBrandPrintStamp( layoutToPrint, stamp, stampMapId );
+ 
+     mIsPrinting = false;
+@@ -1210,5 +1295,8 @@ bool QgisMobileapp::printAtlasFeatures( const QString &layoutName, const QList<l
+     QString openPath;
+ 
++    QString stampMapId;
++    QgsLayoutItemLabel *stamp = addBrandPrintStamp( layoutToPrint, stampMapId );
+     const bool success = printAtlas( layoutToPrint, destination );
++    removeBrandPrintStamp( layoutToPrint, stamp, stampMapId );
+     if ( success )
+     {
 diff --git a/src/app/qml/QfAppSettings.qml b/src/app/qml/QfAppSettings.qml
 index 03afdaf99..fce2e7493 100644
 --- a/src/app/qml/QfAppSettings.qml
@@ -69,14 +200,14 @@ index 03afdaf99..fce2e7493 100644
                  font: QfTheme.tipFont
                  color: QfTheme.secondaryTextColor
 diff --git a/src/app/qml/QfCloudLogin.qml b/src/app/qml/QfCloudLogin.qml
-index f9bcd96e5..3e5e05d2b 100644
+index f9bcd96e5..d9355078f 100644
 --- a/src/app/qml/QfCloudLogin.qml
 +++ b/src/app/qml/QfCloudLogin.qml
 @@ -311,5 +311,5 @@ Item {
        id: cloudIntroLabel
        Layout.fillWidth: true
 -      text: qsTr('The easiest way to transfer you project from QGIS to your devices!') + (Qt.platform.os !== "ios" ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
-+      text: qsTr('The easiest way to transfer you project from QGIS to your devices!') + (Qt.platform.os !== "ios" && !Qfield.whiteLabel ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
++      text: Qfield.whiteLabel ? qsTr('Sign in to open your projects and send in what you collect in the field.') : qsTr('The easiest way to transfer you project from QGIS to your devices!') + (Qt.platform.os !== "ios" ? ' <a href="https://qfield.cloud/">' + qsTr('Learn more about QFieldCloud') + '</a>.' : '')
        horizontalAlignment: Text.AlignHCenter
        font: QfTheme.defaultFont
 diff --git a/src/app/qml/QfCloudPopup.qml b/src/app/qml/QfCloudPopup.qml
@@ -220,9 +351,16 @@ index 5662dd5fc..efbf21602 100644
        }
        pushFilesToQFieldCloudConnection.enabled = false;
 diff --git a/src/app/qml/QfWelcomeScreen.qml b/src/app/qml/QfWelcomeScreen.qml
-index e9eac1d55..739f263a2 100644
+index e9eac1d55..ba2f39b07 100644
 --- a/src/app/qml/QfWelcomeScreen.qml
 +++ b/src/app/qml/QfWelcomeScreen.qml
+@@ -32,5 +32,5 @@ Page {
+     property string baseMapProject: ''
+     property string defaultProject: ''
+-    property bool loadProjectOnLaunch: false
++    property bool loadProjectOnLaunch: true
+   }
+ 
 @@ -209,5 +209,5 @@ Page {
  
                  onClicked: {
@@ -237,11 +375,48 @@ index e9eac1d55..739f263a2 100644
 +              label: Qfield.whiteLabel ? qsTr("Cloud\nprojects") : qsTr("QFieldCloud\nprojects")
                onClicked: showQFieldCloudScreen()
              }
+@@ -542,5 +542,7 @@ Page {
+               id: welcomeActionLocalProjects
+               objectName: "welcomeActionLocalProjects"
+-              width: welcomeActionsContainer.itemWidth
++              // Branded builds open on cloud projects only
++              visible: !Qfield.whiteLabel
++              width: visible ? welcomeActionsContainer.itemWidth : 0
+               iconSource: QfTheme.getThemeVectorIcon("ic_folder_open_black_24dp")
+               iconColor: QfTheme.mainColor
+@@ -555,5 +557,6 @@ Page {
+               id: welcomeActionNewProject
+               objectName: "welcomeActionNewProject"
+-              width: welcomeActionsContainer.itemWidth
++              visible: !Qfield.whiteLabel
++              width: visible ? welcomeActionsContainer.itemWidth : 0
+               iconSource: QfTheme.getThemeVectorIcon("ic_add_white_24dp")
+               iconColor: QfTheme.mainColor
+@@ -1033,5 +1036,5 @@ Page {
+         var firstRun = !settings.valueBool("/QField/FirstRunDone", false);
+         if (firstRun) {
+-          welcomeText.text = table.count > 0 ? qsTr("First time using this application? Try the sample projects listed below.") : "";
++          welcomeText.text = table.count > 0 && !Qfield.whiteLabel ? qsTr("First time using this application? Try the sample projects listed below.") : "";
+           settings.setValue("/QField/FirstRunDone", true);
+           settings.setValue("/QField/showMapCanvasGuide", true);
 diff --git a/src/app/qml/QgisMobileapp.qml b/src/app/qml/QgisMobileapp.qml
-index 19d2d9b23..ac12fa77d 100644
+index 19d2d9b23..dbec4d11b 100644
 --- a/src/app/qml/QgisMobileapp.qml
 +++ b/src/app/qml/QgisMobileapp.qml
-@@ -5371,9 +5371,9 @@ ApplicationWindow {
+@@ -3874,8 +3874,11 @@ ApplicationWindow {
+     MenuItem {
+       text: qsTr("Plugin Manager")
++      // Branded builds do not install plugins from the internet
++      visible: !Qfield.whiteLabel
++      enabled: visible
+ 
+       font: QfTheme.defaultFont
+       icon.source: QfTheme.getThemeVectorIcon("ic_plugin_black_24dp")
+-      height: 48
++      height: visible ? 48 : 0
+       leftPadding: QfTheme.menuItemLeftPadding
+ 
+@@ -5371,9 +5374,9 @@ ApplicationWindow {
        if (hasError) {
          qfieldCloudStatus.refresh();
 -        displayToast(qsTr("Changes failed to reach QFieldCloud: %1").arg(errorString), 'error');
@@ -253,7 +428,7 @@ index 19d2d9b23..ac12fa77d 100644
 +        displayToast(qsTr("Changes successfully pushed to %1").arg(Qfield.cloudName));
        }
        if (QfCloudUtils.hasPendingAttachments(cloudConnection.username)) {
-@@ -5903,6 +5903,6 @@ ApplicationWindow {
+@@ -5903,6 +5906,6 @@ ApplicationWindow {
        {
          "type": "information",
 -        "title": qsTr("QFieldCloud"),
@@ -262,21 +437,21 @@ index 19d2d9b23..ac12fa77d 100644
 +        "description": qsTr("Upload local changes, synchronize or discard changes to and from %1 when a cloud project is opened.").arg(Qfield.cloudName),
          "target": () => [iface.findItemByObjectName('cloudButton')]
        },
-@@ -5910,5 +5910,5 @@ ApplicationWindow {
+@@ -5910,5 +5913,5 @@ ApplicationWindow {
          "type": "information",
          "title": qsTr("Project folder"),
 -        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to QFieldCloud, and sharing datasets, attachments, and layouts."),
 +        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to %1, and sharing datasets, attachments, and layouts.").arg(Qfield.cloudName),
          "target": () => [iface.findItemByObjectName('projectFolderButton')]
        }
-@@ -5927,5 +5927,5 @@ ApplicationWindow {
+@@ -5927,5 +5930,5 @@ ApplicationWindow {
          "type": "information",
          "title": qsTr("Local changes"),
 -        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to QFieldCloud."),
 +        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to %1.").arg(Qfield.cloudName),
          "target": () => [iface.findItemByObjectName('cloudButton')]
        }
-@@ -5942,5 +5942,5 @@ ApplicationWindow {
+@@ -5942,5 +5945,5 @@ ApplicationWindow {
          "type": "information",
          "title": qsTr("Local changes"),
 -        "description": qsTr("This cloud project has pending changes which have not been uploaded yet. Open the dashboard using this button, then tap the blue cloud icon to send them to QFieldCloud."),
@@ -327,10 +502,10 @@ index 531930f9d..ce4b7e02c 100644
      REGISTER_SINGLETON( "org.qfield.core", QfFileUtils, "QfFileUtils" );
      REGISTER_SINGLETON( "org.qfield.core", QfGeometryUtils, "QfGeometryUtils" );
 diff --git a/src/core/qfield.h.in b/src/core/qfield.h.in
-index 3ec76ec90..dd944a662 100644
+index 3ec76ec90..f224cfad5 100644
 --- a/src/core/qfield.h.in
 +++ b/src/core/qfield.h.in
-@@ -66,4 +66,16 @@ class QFIELD_CORE_EXPORT Qfield
+@@ -66,4 +66,19 @@ class QFIELD_CORE_EXPORT Qfield
      Q_PROPERTY( bool hasSerialPort READ hasSerialPort CONSTANT )
  
 +    //! Name of the cloud service shown to users
@@ -345,23 +520,29 @@ index 3ec76ec90..dd944a662 100644
 +    //! TRUE when the build carries another brand and opens on another server than QField's
 +    Q_PROPERTY( bool whiteLabel READ whiteLabel CONSTANT )
 +
++    //! Company behind the brand (empty for QField)
++    Q_PROPERTY( QString publisher READ publisher CONSTANT )
++
    public:
      static inline const QString appName{ QStringLiteral( "@APP_NAME@" ) };
-@@ -71,4 +83,8 @@ class QFIELD_CORE_EXPORT Qfield
+@@ -71,4 +86,10 @@ class QFIELD_CORE_EXPORT Qfield
      static inline const QString appVersionStr{ QStringLiteral( "@APP_VERSION_STR@" ) };
      static inline const QString gitRev{ QStringLiteral( "@GIT_REV@" ) };
 +    static inline const QString cloudDefaultUrl{ QStringLiteral( "@APP_CLOUD_URL@" ) };
 +    static inline const QString appCloudName{ QStringLiteral( "@APP_CLOUD_NAME@" ) };
 +    static inline const QString appWebsite{ QStringLiteral( "@APP_WEBSITE@" ) };
 +    static inline const QString appSourceUrl{ QStringLiteral( "@APP_SOURCE_URL@" ) };
++    static inline const QString appPublisher{ QStringLiteral( "@APP_PUBLISHER@" ) };
++    static inline const QString appFontFamily{ QStringLiteral( "@APP_FONT_FAMILY@" ) };
  
      QString name() const { return appName; }
-@@ -76,4 +92,9 @@ class QFIELD_CORE_EXPORT Qfield
+@@ -76,4 +97,10 @@ class QFIELD_CORE_EXPORT Qfield
      QString versionString() const { return appVersionStr; }
      QString gitRevision() const { return gitRev; }
 +    QString cloudName() const { return appCloudName; }
 +    QString websiteUrl() const { return appWebsite; }
 +    QString sourceUrl() const { return appSourceUrl; }
++    QString publisher() const { return appPublisher; }
 +    static bool isWhiteLabel() { return cloudDefaultUrl != QLatin1String( "https://app.qfield.cloud" ); }
 +    bool whiteLabel() const { return isWhiteLabel(); }
      QString qtVersion() const;
@@ -452,6 +633,30 @@ index 50064fb23..98a15e8a9 100644
 +      mItems << QfLocalFileItem( ItemMetaType::Folder, ItemType::ApplicationFolder, tr( "%1 files directory" ).arg( Qfield::appName ), QString(), applicationDirectory );
      }
  
+diff --git a/src/gui/qfrecentprojectlistmodel.cpp b/src/gui/qfrecentprojectlistmodel.cpp
+index 5eadac443..0a54e9ff3 100644
+--- a/src/gui/qfrecentprojectlistmodel.cpp
++++ b/src/gui/qfrecentprojectlistmodel.cpp
+@@ -21,4 +21,5 @@
+ 
+ #include <QDir>
++#include <algorithm>
+ #include <QFile>
+ #include <QSettings>
+@@ -50,6 +51,12 @@ void QfRecentProjectListModel::reloadModel()
+   mRecentProjects = recentProjects( true );
+ 
++  if ( Qfield::isWhiteLabel() )
++  {
++    // Branded builds open on cloud projects only: no sample projects, local projects or datasets
++    mRecentProjects.erase( std::remove_if( mRecentProjects.begin(), mRecentProjects.end(), []( const RecentProject &project ) { return project.type != CloudProject; } ), mRecentProjects.end() );
++  }
++
+   const bool sampleProjectsAdded = settings.value( QStringLiteral( "QField/recentProjectsAdded" ), false ).toBool();
+-  if ( !sampleProjectsAdded )
++  if ( !sampleProjectsAdded && !Qfield::isWhiteLabel() )
+   {
+     const QString sampleProjectsDirectory = QfPlatformUtilities::instance()->systemLocalDataLocation( QLatin1String( "sample_projects" ) );
 diff --git a/src/gui/qml/CMakeLists.txt b/src/gui/qml/CMakeLists.txt
 index 05cbb4bd2..23b308513 100644
 --- a/src/gui/qml/CMakeLists.txt
