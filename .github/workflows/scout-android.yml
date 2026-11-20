@@ -90,6 +90,31 @@ jobs:
           done
           grep -c "${APP_NAME}" platform/android/res/values/strings.xml
 
+      - name: Apply the brand's icons, logos and font
+        # QField's own pictures are replaced before the build copies them into the app:
+        # launcher icon, splash and notification icon, the cloud sign-in logo and the
+        # default profile picture. The brand font is downloaded and checked by SHA-256.
+        run: |
+          set -a; source "branding/${BRAND}/brand.env"; set +a
+          cp branding/${BRAND}/icon/android/drawable/*.xml platform/android/res/drawable/
+          if [ -f "branding/${BRAND}/icon/android/splash.xml.in" ]; then
+            cp "branding/${BRAND}/icon/android/splash.xml.in" platform/android/res/drawable/splash.xml.in
+          fi
+          cp "branding/${BRAND}/icon/${APP_ICON}.svg" images/icons/qfieldcloud_logo.svg
+          cp "branding/${BRAND}/icon/${APP_ICON}.svg" images/icons/nyuki.svg
+          if [ -n "${APP_FONT_FAMILY:-}" ] && [ -f "branding/${BRAND}/fonts.txt" ]; then
+            mkdir -p images/fonts
+            entries=""
+            while read -r name sha url; do
+              [ -z "$name" ] && continue
+              curl -sSfL -o "images/fonts/${name}" "$url"
+              echo "${sha}  images/fonts/${name}" | sha256sum -c -
+              entries="${entries}        <file alias=\"${name}\">fonts/${name}</file>\n"
+            done < "branding/${BRAND}/fonts.txt"
+            sed -i "s|</RCC>|    <qresource prefix=\"/fonts\">\n${entries}    </qresource>\n</RCC>|" images/images.qrc
+            tail -8 images/images.qrc
+          fi
+
       - name: Reclaim disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
@@ -158,6 +183,8 @@ jobs:
                 -D APP_CLOUD_NAME="${APP_CLOUD_NAME}" \
                 -D APP_WEBSITE="${APP_WEBSITE}" \
                 -D APP_SOURCE_URL="${APP_SOURCE_URL}" \
+                -D APP_PUBLISHER="${APP_PUBLISHER:-}" \
+                -D APP_FONT_FAMILY="${APP_FONT_FAMILY:-}" \
                 -D APP_ICON_PATH="${{ github.workspace }}/branding/${BRAND}/icon" \
                 -D APP_THEME_PATH="${{ github.workspace }}/branding/${BRAND}/theme.json" \
                 -D NUGET_USERNAME=opengisch \
