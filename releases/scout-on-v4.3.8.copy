@@ -1,5 +1,4 @@
 images/themes/qfield/nodpi/ic_scan_document_black_24dp.svg
-platform/android/src/ch/opengis/qfield/QFieldActivity.java
 platform/android/src/ch/opengis/qfield/QFieldCloudService.java
 platform/android/src/ch/opengis/qfield/QFieldPositioningService.java
 src/app/qml/QfAbout.qml
