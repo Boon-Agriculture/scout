@@ -81,8 +81,88 @@ index 000000000..f2c845689
 +    <exclude domain="external" />
 +  </device-transfer>
 +</data-extraction-rules>
+diff --git a/platform/android/src/ch/opengis/qfield/QFieldActivity.java b/platform/android/src/ch/opengis/qfield/QFieldActivity.java
+index 0aff5bda0..28bdb95a3 100644
+--- a/platform/android/src/ch/opengis/qfield/QFieldActivity.java
++++ b/platform/android/src/ch/opengis/qfield/QFieldActivity.java
+@@ -156,4 +156,11 @@ public class QFieldActivity extends QtActivity {
+         super.onCreate(savedInstanceState);
+ 
++        // Branded builds (any package other than QField's own) keep field data on screen only:
++        // no screenshots, screen recording or previews in the recent apps list.
++        if (!getPackageName().startsWith("ch.opengis.qfield")) {
++            getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,
++                                 WindowManager.LayoutParams.FLAG_SECURE);
++        }
++
+         View decorView = getWindow().getDecorView();
+         decorView.getViewTreeObserver().addOnGlobalLayoutListener(
+@@ -907,5 +914,5 @@ public class QFieldActivity extends QtActivity {
+ 
+                     Uri fileURI = FileProvider.getUriForFile(
+-                        this, "ch.opengis.qfield.fileprovider", tempFile);
++                        this, getPackageName() + ".fileprovider", tempFile);
+ 
+                     Log.d("QField",
+@@ -977,5 +984,5 @@ public class QFieldActivity extends QtActivity {
+                                  ? Uri.fromFile(resourceFile)
+                                  : FileProvider.getUriForFile(
+-                                       this, "ch.opengis.qfield.fileprovider",
++                                       this, getPackageName() + ".fileprovider",
+                                        resourceCacheFile);
+ 
+diff --git a/src/app/qfclipboardmanager.cpp b/src/app/qfclipboardmanager.cpp
+index c4a5e064b..d35291a58 100644
+--- a/src/app/qfclipboardmanager.cpp
++++ b/src/app/qfclipboardmanager.cpp
+@@ -17,4 +17,7 @@
+ 
+ #include "qfclipboardmanager.h"
++#include "qfield.h"
++
++#include <QGuiApplication>
+ #include "qffeatureutils.h"
+ 
+@@ -34,4 +37,16 @@ QfClipboardManager::QfClipboardManager( QObject *parent )
+ void QfClipboardManager::dataChanged()
+ {
++  if ( Qfield::isWhiteLabel() )
++  {
++    // Branded builds never leave field data on the phone's clipboard, where other apps
++    // could read it. Anything copied while the app runs (for example selected text) is cleared.
++    const QMimeData *mimeData = mClipboard->mimeData();
++    if ( mimeData && !mimeData->formats().isEmpty() && QGuiApplication::applicationState() == Qt::ApplicationActive )
++    {
++      mClipboard->clear();
++    }
++    return;
++  }
++
+   if ( mSkipDataChanged )
+   {
+@@ -121,8 +136,17 @@ void QfClipboardManager::copyFeatureToClipboard( const QgsFeature &feature, bool
+ </html>)""" )
+                        .arg( htmlLines.join( QStringLiteral( "</tr><tr>" ) ) ) );
+-  mHtmlFeature = mimeData->html();
++  if ( Qfield::isWhiteLabel() )
++  {
++    // Branded builds keep a copied feature inside the app only (for pasting), never on the phone's clipboard
++    delete mimeData;
++    mHtmlFeature.clear();
++  }
++  else
++  {
++    mHtmlFeature = mimeData->html();
+ 
+-  mSkipDataChanged = true;
+-  mClipboard->setMimeData( mimeData );
++    mSkipDataChanged = true;
++    mClipboard->setMimeData( mimeData );
++  }
+ 
+   mNativeFeature = feature;
 diff --git a/src/app/qgismobileapp.cpp b/src/app/qgismobileapp.cpp
-index d36957642..a93024bc1 100644
+index d36957642..0e891b129 100644
 --- a/src/app/qgismobileapp.cpp
 +++ b/src/app/qgismobileapp.cpp
 @@ -94,4 +94,5 @@
@@ -206,13 +286,21 @@ index d36957642..a93024bc1 100644
 +    QgsLayoutItemLabel *stamp = addBrandPrintStamp( layoutToPrint, stampMapId );
      if ( !layoutToPrint->atlas() || !layoutToPrint->atlas()->enabled() )
      {
-@@ -1159,4 +1243,5 @@ bool QgisMobileapp::print( const QString &layoutName )
+@@ -1159,9 +1243,11 @@ bool QgisMobileapp::print( const QString &layoutName )
        }
      }
 +    removeBrandPrintStamp( layoutToPrint, stamp, stampMapId );
  
      mIsPrinting = false;
-@@ -1210,5 +1295,8 @@ bool QgisMobileapp::printAtlasFeatures( const QString &layoutName, const QList<l
+-    emit printEnded( success, success ? layoutsFolder() : QString() );
++    // Branded builds report the printed file itself (it goes to the cloud) and never open it in another app
++    emit printEnded( success, success ? ( Qfield::isWhiteLabel() ? openPath : layoutsFolder() ) : QString() );
+ 
+-    if ( !openPath.isEmpty() )
++    if ( !openPath.isEmpty() && !Qfield::isWhiteLabel() )
+     {
+       QfPlatformUtilities::instance()->open( openPath );
+@@ -1210,5 +1296,8 @@ bool QgisMobileapp::printAtlasFeatures( const QString &layoutName, const QList<l
      QString openPath;
  
 +    QString stampMapId;
@@ -221,6 +309,16 @@ index d36957642..a93024bc1 100644
 +    removeBrandPrintStamp( layoutToPrint, stamp, stampMapId );
      if ( success )
      {
+@@ -1228,7 +1317,7 @@ bool QgisMobileapp::printAtlasFeatures( const QString &layoutName, const QList<l
+ 
+     mIsPrinting = false;
+-    emit printEnded( success, success ? layoutsFolder() : QString() );
++    emit printEnded( success, success ? ( Qfield::isWhiteLabel() ? openPath : layoutsFolder() ) : QString() );
+ 
+-    if ( success && !openPath.isEmpty() )
++    if ( success && !openPath.isEmpty() && !Qfield::isWhiteLabel() )
+     {
+       QfPlatformUtilities::instance()->open( openPath );
 diff --git a/src/app/qml/QfAppSettings.qml b/src/app/qml/QfAppSettings.qml
 index 03afdaf99..fce2e7493 100644
 --- a/src/app/qml/QfAppSettings.qml
@@ -347,7 +445,7 @@ index 7773d1821..ac45faa4f 100644
          } else {
            projectDetails.cloudProject = cloudProjectsModel.findProject(projectId);
 diff --git a/src/app/qml/QfLocalDataPickerScreen.qml b/src/app/qml/QfLocalDataPickerScreen.qml
-index 5662dd5fc..7eafc39f4 100644
+index 5662dd5fc..209a36ca5 100644
 --- a/src/app/qml/QfLocalDataPickerScreen.qml
 +++ b/src/app/qml/QfLocalDataPickerScreen.qml
 @@ -35,5 +35,5 @@ Page {
@@ -360,10 +458,10 @@ index 5662dd5fc..7eafc39f4 100644
 @@ -57,4 +57,10 @@ Page {
    }
  
-+  // Branded builds keep field data inside the app: only photos and printed maps (PDF)
-+  // can be opened in other apps, sent or exported. Datasets, projects and folders cannot.
++  // Branded builds keep everything inside the app: no file (data, photo, scan or print)
++  // can be opened in other apps, sent or exported. Prints go to the cloud instead.
 +  function brandAllowsSharing(path) {
-+    return !Qfield.whiteLabel || /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(path);
++    return !Qfield.whiteLabel;
 +  }
 +
    ColumnLayout {
@@ -507,10 +605,47 @@ index e9eac1d55..ba2f39b07 100644
            settings.setValue("/QField/FirstRunDone", true);
            settings.setValue("/QField/showMapCanvasGuide", true);
 diff --git a/src/app/qml/QgisMobileapp.qml b/src/app/qml/QgisMobileapp.qml
-index 19d2d9b23..dbec4d11b 100644
+index 19d2d9b23..1d61554bb 100644
 --- a/src/app/qml/QgisMobileapp.qml
 +++ b/src/app/qml/QgisMobileapp.qml
-@@ -3874,8 +3874,11 @@ ApplicationWindow {
+@@ -1525,5 +1525,5 @@ ApplicationWindow {
+         iconColor: QfTheme.light
+         bgcolor: QfTheme.toolButtonBackgroundColor
+-        visible: actionsPieMenu.openingAngle >= actionsPieMenu.segmentAngle * 4
++        visible: !Qfield.whiteLabel && actionsPieMenu.openingAngle >= actionsPieMenu.segmentAngle * 4
+         onClicked: {
+           if (!positionSource.positionInformation) {
+@@ -1635,7 +1635,11 @@ ApplicationWindow {
+               trackerSettings.open();
+             } else {
+-              displayToast(qsTr('No compatible layers available to launch tracking'), 'info', qsTr('Learn more'), function () {
+-                Qt.openUrlExternally('https://docs.qfield.org/how-to/navigation-and-positioning/tracking/');
+-              });
++              if (Qfield.whiteLabel) {
++                displayToast(qsTr('No compatible layers available to launch tracking'), 'info');
++              } else {
++                displayToast(qsTr('No compatible layers available to launch tracking'), 'info', qsTr('Learn more'), function () {
++                  Qt.openUrlExternally('https://docs.qfield.org/how-to/navigation-and-positioning/tracking/');
++                });
++              }
+             }
+           }
+@@ -3842,7 +3846,11 @@ ApplicationWindow {
+         } else {
+           mainMenu.close();
+-          toast.show(qsTr('No sensor available'), 'info', qsTr('Learn more'), function () {
+-            Qt.openUrlExternally('https://docs.qfield.org/how-to/advanced-how-tos/sensors/');
+-          });
++          if (Qfield.whiteLabel) {
++            toast.show(qsTr('No sensor available'), 'info');
++          } else {
++            toast.show(qsTr('No sensor available'), 'info', qsTr('Learn more'), function () {
++              Qt.openUrlExternally('https://docs.qfield.org/how-to/advanced-how-tos/sensors/');
++            });
++          }
+         }
+         highlighted = false;
+@@ -3874,8 +3882,11 @@ ApplicationWindow {
      MenuItem {
        text: qsTr("Plugin Manager")
 +      // Branded builds do not install plugins from the internet
@@ -523,7 +658,44 @@ index 19d2d9b23..dbec4d11b 100644
 +      height: visible ? 48 : 0
        leftPadding: QfTheme.menuItemLeftPadding
  
-@@ -5371,9 +5374,9 @@ ApplicationWindow {
+@@ -4166,4 +4177,8 @@ ApplicationWindow {
+       onTriggered: {
+         const displayPoint = QfGeometryUtils.reprojectPoint(canvasMenu.point, mapCanvas.mapSettings.destinationCrs, projectInfo.coordinateDisplayCrs);
++        if (Qfield.whiteLabel) {
++          // Branded builds do not copy field data out of the app
++          return;
++        }
+         platformUtilities.copyTextToClipboard(QfStringUtils.pointInformation(displayPoint, projectInfo.coordinateDisplayCrs));
+         displayToast(qsTr('Coordinates copied to clipboard'));
+@@ -4884,4 +4899,13 @@ ApplicationWindow {
+       if (!success) {
+         displayToast(qsTr('Print failed'), 'error');
++      } else if (Qfield.whiteLabel) {
++        // Branded builds keep prints off the phone's other apps: the PDF goes to the cloud only
++        const printProjectId = QfCloudUtils.getProjectId(qgisProject.fileName);
++        if (printProjectId && folderPath !== '' && cloudConnection.userInformation.username !== '') {
++          QfCloudUtils.addPendingAttachments(cloudConnection.userInformation.username, printProjectId, [folderPath], cloudConnection, true);
++          displayToast(qsTr('Map printed. It is sent to %1, where it can be viewed and shared.').arg(Qfield.cloudName));
++        } else {
++          displayToast(qsTr('Map printed and kept in the project. It is sent to %1 once you are signed in.').arg(Qfield.cloudName));
++        }
+       } else {
+         displayToast(qsTr('Printed and placed in your project layouts folder'), 'info', qsTr('Open folder'), () => {
+@@ -5344,5 +5368,5 @@ ApplicationWindow {
+         const ownerIsUser = cloudConnection.username === projectOwner;
+         if (errorString.indexOf(`"code":"${QFieldCloudUtils.errorCodeOverQuota}"`) >= 0) {
+-          if (ownerIsUser && cloudConnection.url == cloudConnection.defaultUrl && Qt.platform !== "ios") {
++          if (ownerIsUser && cloudConnection.url == cloudConnection.defaultUrl && Qt.platform !== "ios" && !Qfield.whiteLabel) {
+             displayToast(qsTr("Project %1 cannot be packaged as your available storage is full.").arg(projectName), 'info', qsTr('Upgrade storage'), function () {
+               Qt.openUrlExternally('https://app.qfield.cloud/plans');
+@@ -5352,5 +5376,5 @@ ApplicationWindow {
+           }
+         } else if (errorString.indexOf(`"code":"${QFieldCloudUtils.errorCodePlanInsufficient}"`) >= 0) {
+-          if (ownerIsUser && cloudConnection.url == cloudConnection.defaultUrl && Qt.platform !== "ios") {
++          if (ownerIsUser && cloudConnection.url == cloudConnection.defaultUrl && Qt.platform !== "ios" && !Qfield.whiteLabel) {
+             displayToast(qsTr("Project %1 cannot be downloaded as your subscription plan is insufficient.").arg(projectName), 'info', qsTr('Upgrade plan'), function () {
+               Qt.openUrlExternally('https://app.qfield.cloud/plans');
+@@ -5371,9 +5395,9 @@ ApplicationWindow {
        if (hasError) {
          qfieldCloudStatus.refresh();
 -        displayToast(qsTr("Changes failed to reach QFieldCloud: %1").arg(errorString), 'error');
@@ -535,7 +707,7 @@ index 19d2d9b23..dbec4d11b 100644
 +        displayToast(qsTr("Changes successfully pushed to %1").arg(Qfield.cloudName));
        }
        if (QfCloudUtils.hasPendingAttachments(cloudConnection.username)) {
-@@ -5903,6 +5906,6 @@ ApplicationWindow {
+@@ -5903,6 +5927,6 @@ ApplicationWindow {
        {
          "type": "information",
 -        "title": qsTr("QFieldCloud"),
@@ -544,21 +716,21 @@ index 19d2d9b23..dbec4d11b 100644
 +        "description": qsTr("Upload local changes, synchronize or discard changes to and from %1 when a cloud project is opened.").arg(Qfield.cloudName),
          "target": () => [iface.findItemByObjectName('cloudButton')]
        },
-@@ -5910,5 +5913,5 @@ ApplicationWindow {
+@@ -5910,5 +5934,5 @@ ApplicationWindow {
          "type": "information",
          "title": qsTr("Project folder"),
 -        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to QFieldCloud, and sharing datasets, attachments, and layouts."),
 +        "description": qsTr("Open the project folder to access project files, data sources, and related documents. Useful for managing project resources, manually uploading data to %1, and sharing datasets, attachments, and layouts.").arg(Qfield.cloudName),
          "target": () => [iface.findItemByObjectName('projectFolderButton')]
        }
-@@ -5927,5 +5930,5 @@ ApplicationWindow {
+@@ -5927,5 +5951,5 @@ ApplicationWindow {
          "type": "information",
          "title": qsTr("Local changes"),
 -        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to QFieldCloud."),
 +        "description": qsTr("This project has pending changes which have not been uploaded yet. Tap the blue cloud button to open the cloud project panel and send them to %1.").arg(Qfield.cloudName),
          "target": () => [iface.findItemByObjectName('cloudButton')]
        }
-@@ -5942,5 +5945,5 @@ ApplicationWindow {
+@@ -5942,5 +5966,5 @@ ApplicationWindow {
          "type": "information",
          "title": qsTr("Local changes"),
 -        "description": qsTr("This cloud project has pending changes which have not been uploaded yet. Open the dashboard using this button, then tap the blue cloud icon to send them to QFieldCloud."),
@@ -592,6 +764,18 @@ index 4ea6c4b55..a3ae0d263 100644
 +        QJniObject messageJni = QJniObject::fromString( QObject::tr( "Please wait while %1 installation finalizes." ).arg( Qfield::appName ) );
          activity.callMethod<void>( "showBlockingProgressDialog", "(Ljava/lang/String;)V", messageJni.object<jstring>() );
        }
+diff --git a/src/core/platforms/qfplatformutilities.cpp b/src/core/platforms/qfplatformutilities.cpp
+index 143425243..5966f2edc 100644
+--- a/src/core/platforms/qfplatformutilities.cpp
++++ b/src/core/platforms/qfplatformutilities.cpp
+@@ -522,4 +522,7 @@ bool QfPlatformUtilities::checkMicrophonePermissions() const
+ void QfPlatformUtilities::copyTextToClipboard( const QString &string ) const
+ {
++  // Branded builds do not put field data on the phone's clipboard
++  if ( Qfield::isWhiteLabel() )
++    return;
+   QGuiApplication::clipboard()->setText( string );
+ }
 diff --git a/src/core/qfcore.cpp b/src/core/qfcore.cpp
 index 531930f9d..ce4b7e02c 100644
 --- a/src/core/qfcore.cpp
@@ -774,8 +958,34 @@ index 05cbb4bd2..23b308513 100644
 +    QfDocumentScanner.qml
      QfComboBox.qml
      QfConfirmationToolbar.qml
+diff --git a/src/gui/qml/QfBookmarkList.qml b/src/gui/qml/QfBookmarkList.qml
+index a1112ed3b..9003c1190 100644
+--- a/src/gui/qml/QfBookmarkList.qml
++++ b/src/gui/qml/QfBookmarkList.qml
+@@ -292,7 +292,10 @@ QfPaneDrawer {
+       text: qsTr("Copy Bookmark Details")
+       icon.source: QfTheme.getThemeVectorIcon("ic_copy_black_24dp")
++      // Branded builds do not copy field data out of the app
++      visible: !Qfield.whiteLabel
++      enabled: visible
+ 
+       font: QfTheme.defaultFont
+-      height: 48
++      height: visible ? 48 : 0
+       leftPadding: QfTheme.menuItemLeftPadding
+ 
+diff --git a/src/gui/qml/QfBookmarkProperties.qml b/src/gui/qml/QfBookmarkProperties.qml
+index 2b37120b7..0b88fbe60 100644
+--- a/src/gui/qml/QfBookmarkProperties.qml
++++ b/src/gui/qml/QfBookmarkProperties.qml
+@@ -207,4 +207,5 @@ QfPopup {
+ 
+         QfToolButton {
++          visible: !Qfield.whiteLabel
+           height: QfTheme.toolButtonSize
+           width: QfTheme.toolButtonSize
 diff --git a/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml b/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml
-index 5fc249ab0..190cbc2fc 100644
+index 5fc249ab0..db00abc7a 100644
 --- a/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml
 +++ b/src/gui/qml/editorwidgets/QfEditorWidgetExternalResource.qml
 @@ -76,4 +76,10 @@ QfEditorWidgetBase {
@@ -796,14 +1006,29 @@ index 5fc249ab0..190cbc2fc 100644
 +    anchors.right: scanButton.left
      color: {
        if ((!isEditable && isEditing) || isNull || isEmpty) {
-@@ -281,5 +287,5 @@ QfEditorWidgetBase {
+@@ -267,5 +273,6 @@ QfEditorWidgetBase {
+           // matches `http://...` but not `file://...` paths
+           Qt.openUrlExternally(value);
+-        } else if (QfFileUtils.fileExists(prefixToRelativePath + value)) {
++        } else if (QfFileUtils.fileExists(prefixToRelativePath + value) && !Qfield.whiteLabel) {
++          // Branded builds do not hand photos or scans to other apps
+           __viewStatus = platformUtilities.open(prefixToRelativePath + value, isEnabled, this);
+         }
+@@ -281,5 +288,5 @@ QfEditorWidgetBase {
    Rectangle {
      id: mediaFrame
 -    width: parent.width - fileButton.width - cameraButton.width - cameraVideoButton.width - microphoneButton.width - (isEnabled ? 5 : 0)
 +    width: parent.width - fileButton.width - scanButton.width - cameraButton.width - cameraVideoButton.width - microphoneButton.width - (isEnabled ? 5 : 0)
      height: 48
      visible: !linkField.isVisible
-@@ -589,4 +595,21 @@ QfEditorWidgetBase {
+@@ -471,5 +478,5 @@ QfEditorWidgetBase {
+ 
+       onClicked: {
+-        if (QfFileUtils.fileExists(prefixToRelativePath + value)) {
++        if (QfFileUtils.fileExists(prefixToRelativePath + value) && !Qfield.whiteLabel) {
+           platformUtilities.requestStoragePermission();
+           __viewStatus = platformUtilities.open(prefixToRelativePath + value, isEnabled, this);
+@@ -589,4 +596,21 @@ QfEditorWidgetBase {
    }
  
 +  QfToolButton {
@@ -825,7 +1050,7 @@ index 5fc249ab0..190cbc2fc 100644
 +
    QfToolButton {
      id: cameraButton
-@@ -719,4 +742,9 @@ QfEditorWidgetBase {
+@@ -719,4 +743,9 @@ QfEditorWidgetBase {
  
        onFinished: path => {
 +        if (scanCapture) {
@@ -835,7 +1060,7 @@ index 5fc249ab0..190cbc2fc 100644
 +        }
          const filepath = QfStringUtils.replaceFilenameTags(getResourceFilePath(), path);
          platformUtilities.renameFile(path, prefixToRelativePath + filepath);
-@@ -731,5 +759,10 @@ QfEditorWidgetBase {
+@@ -731,5 +760,10 @@ QfEditorWidgetBase {
        }
  
 -      onCanceled: close()
@@ -847,7 +1072,7 @@ index 5fc249ab0..190cbc2fc 100644
 +      }
        onClosed: cameraLoader.active = false
      }
-@@ -739,4 +772,13 @@ QfEditorWidgetBase {
+@@ -739,4 +773,13 @@ QfEditorWidgetBase {
      target: __resourceSource
      function onResourceReceived(path) {
 +      if (path && scanCapture) {
@@ -861,14 +1086,14 @@ index 5fc249ab0..190cbc2fc 100644
 +      }
        if (path) {
          const maximumWidhtHeight = iface.readProjectNumEntry("qfieldsync", "maximumImageWidthHeight", 0);
-@@ -781,5 +823,5 @@ QfEditorWidgetBase {
+@@ -781,5 +824,5 @@ QfEditorWidgetBase {
        if (downloadAttachmentFileName === fileName) {
          if (errorString !== "") {
 -          displayToast(qsTr("QFieldCloud on-demand attachment error: ") + errorString, 'error');
 +          displayToast(qsTr("%1 on-demand attachment error: ").arg(Qfield.cloudName) + errorString, 'error');
          } else {
            prepareValue(prefixToRelativePath + fileName);
-@@ -813,4 +855,46 @@ QfEditorWidgetBase {
+@@ -813,4 +856,46 @@ QfEditorWidgetBase {
    }
  
 +  QfDocumentScanner {
@@ -915,6 +1140,23 @@ index 5fc249ab0..190cbc2fc 100644
 +
    function capturePhoto() {
      Qt.inputMethod.hide();
+diff --git a/src/gui/qml/editorwidgets/QfEditorWidgetTextEdit.qml b/src/gui/qml/editorwidgets/QfEditorWidgetTextEdit.qml
+index 826b44df9..a2f51fed7 100644
+--- a/src/gui/qml/editorwidgets/QfEditorWidgetTextEdit.qml
++++ b/src/gui/qml/editorwidgets/QfEditorWidgetTextEdit.qml
+@@ -136,8 +136,11 @@ QfEditorWidgetBase {
+       id: copyTextItem
+       text: qsTr('Copy Text')
++      // Branded builds do not copy field data out of the app
++      visible: !Qfield.whiteLabel
++      enabled: visible
+ 
+       font: QfTheme.defaultFont
+       icon.source: QfTheme.getThemeVectorIcon("ic_copy_black_24dp")
+-      height: 48
++      height: visible ? 48 : 0
+       leftPadding: QfTheme.menuItemLeftPadding
+ 
 diff --git a/src/gui/qml/editorwidgets/relationeditors/gallery_relation_editor.qml b/src/gui/qml/editorwidgets/relationeditors/gallery_relation_editor.qml
 index 8f0b6d36f..90a41f0a8 100644
 --- a/src/gui/qml/editorwidgets/relationeditors/gallery_relation_editor.qml
